@@ -154,11 +154,19 @@ private class MoonApi(context:Context) {
     }
     suspend fun createRoom(title:String,kind:String):Room {
         val uid=userId?:error("ابتدا وارد حساب شو")
-        val created=JSONArray(request("/rest/v1/conversations","POST",JSONObject().put("title",title).put("is_group",true).put("kind",kind).put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
-        if(created.length()==0) error("ساخت گفتگو ناموفق بود")
-        val r=created.getJSONObject(0)
-        val id=r.getString("id")
-        return Room(id,title,kind)
+        val cleanTitle=title.trim()
+        if(cleanTitle.length<2) error("نام گروه یا کانال باید حداقل ۲ نویسه باشد.")
+        if(kind!="group" && kind!="channel") error("نوع گفتگو نامعتبر است.")
+        val payload=JSONObject().put("title",cleanTitle.take(60)).put("is_group",kind=="group").put("kind",kind).put("created_by",uid)
+        val created=JSONArray(request("/rest/v1/conversations","POST",payload.toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        if(created.length()==0) error("سرور گفتگو را نساخت؛ پاسخ خالی دریافت شد.")
+        val row=created.getJSONObject(0)
+        val id=row.getString("id")
+        // The database trigger normally inserts the creator. Ensure membership as a safe fallback.
+        request("/rest/v1/conversation_members?on_conflict=conversation_id,user_id","POST",
+            JSONObject().put("conversation_id",id).put("user_id",uid).toString(),true,"application/json",
+            mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
+        return Room(id,row.optString("title",cleanTitle),kind)
     }
     suspend fun lookupContact(emailTarget:String):MoonContact {
         val result=JSONArray(request("/rest/v1/rpc/lookup_profile_by_email","POST",JSONObject().put("p_email",emailTarget.trim()).toString()))
@@ -168,20 +176,33 @@ private class MoonApi(context:Context) {
     }
     suspend fun direct(emailTarget:String):Room {
         val uid=userId?:error("ابتدا وارد حساب شو")
-        val result=JSONArray(request("/rest/v1/rpc/lookup_profile_by_email","POST",JSONObject().put("p_email",emailTarget).toString()))
-        if(result.length()==0)error("این ایمیل در مون‌تایم ثبت‌نام نکرده است.")
+        val cleanEmail=emailTarget.trim().lowercase()
+        if(!android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) error("ایمیل کاربر را درست وارد کن.")
+        val result=JSONArray(request("/rest/v1/rpc/lookup_profile_by_email","POST",JSONObject().put("p_email",cleanEmail).toString(),true))
+        if(result.length()==0) error("این ایمیل در Moon Time ثبت‌نام نکرده یا هنوز پروفایلش آماده نیست.")
         val target=result.getJSONObject(0)
-        val created=JSONArray(request("/rest/v1/conversations","POST",JSONObject().put("title",target.optString("display_name","گفتگوی خصوصی")).put("is_group",false).put("kind","direct").put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
-        if(created.length()==0) error("ساخت گفتگوی خصوصی ناموفق بود")
+        val targetId=target.getString("id")
+        if(targetId==uid) error("نمی‌توانی با حساب خودت گفتگوی خصوصی بسازی.")
+        val title=target.optString("display_name").ifBlank{"گفتگوی خصوصی"}
+        val created=JSONArray(request("/rest/v1/conversations","POST",JSONObject().put("title",title).put("is_group",false).put("kind","direct").put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        if(created.length()==0) error("سرور گفتگوی خصوصی را نساخت؛ پاسخ خالی دریافت شد.")
         val room=created.getJSONObject(0)
         val id=room.getString("id")
-        request("/rest/v1/conversation_members","POST",JSONObject().put("conversation_id",id).put("user_id",target.getString("id")).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
-        return Room(id,room.optString("title","گفتگوی خصوصی"),"direct")
+        // The creator is added by trigger; add the other participant with duplicate-safe semantics.
+        request("/rest/v1/conversation_members?on_conflict=conversation_id,user_id","POST",
+            JSONObject().put("conversation_id",id).put("user_id",targetId).toString(),true,"application/json",
+            mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
+        return Room(id,room.optString("title",title),"direct")
     }
     suspend fun addMember(room:Room,emailTarget:String) {
-        val found=JSONArray(request("/rest/v1/rpc/lookup_profile_by_email","POST",JSONObject().put("p_email",emailTarget).toString()))
+        val cleanEmail=emailTarget.trim().lowercase()
+        if(!android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) error("ایمیل عضو را درست وارد کن.")
+        val found=JSONArray(request("/rest/v1/rpc/lookup_profile_by_email","POST",JSONObject().put("p_email",cleanEmail).toString(),true))
         if(found.length()==0)error("کاربری با این ایمیل پیدا نشد.")
-        request("/rest/v1/conversation_members","POST",JSONObject().put("conversation_id",room.id).put("user_id",found.getJSONObject(0).getString("id")).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+        val targetId=found.getJSONObject(0).getString("id")
+        request("/rest/v1/conversation_members?on_conflict=conversation_id,user_id","POST",
+            JSONObject().put("conversation_id",room.id).put("user_id",targetId).toString(),true,"application/json",
+            mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
     }
     fun queueText(room:Room, text:String):Msg {
         userId ?: error("ابتدا وارد شو")
