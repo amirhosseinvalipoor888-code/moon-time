@@ -272,7 +272,7 @@ async function setupPeer(remoteId,callId){
  callStream.getTracks().forEach(t=>callPc.addTrack(t,callStream));
  $('localVideo').srcObject=callStream;$('localVideo').style.display=activeCall.call_type==='video'?'block':'none';
  callPc.ontrack=e=>{$('remoteVideo').srcObject=e.streams[0];$('remoteVideo').style.display='block';};
- callPc.onicecandidate=async e=>{if(!e.candidate||!activeCall)return;const {error}=await sb.from('call_ice_candidates').insert({call_id:callId,sender_id:user.id,recipient_id:remoteId,candidate:e.candidate.toJSON()});if(error)setStatus('ارسال مسیر تماس ناموفق بود: '+error.message);};
+ callPc.onicecandidate=async e=>{if(!e.candidate||!activeCall)return;const candidate=e.candidate.toJSON();if(!activeCall.id){(activeCall.pendingIce||=[]).push(candidate);return;}const {error}=await sb.from('call_ice_candidates').insert({call_id:activeCall.id,sender_id:user.id,recipient_id:remoteId,candidate});if(error)setStatus('ارسال مسیر تماس ناموفق بود: '+error.message);};
  iceSignal=sb.channel('ice-'+callId+'-'+user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'call_ice_candidates',filter:'call_id=eq.'+callId},async payload=>{
   const c=payload.new;if(c.recipient_id!==user.id||c.sender_id!==remoteId)return;
   try{await callPc.addIceCandidate(new RTCIceCandidate(c.candidate));}catch(err){console.warn('ICE candidate',err);}
@@ -303,7 +303,8 @@ async function startCall(kind){
   // Recreate ICE subscription with the persisted call id; pending candidates are still inserted only after call creation.
   if(iceSignal)await sb.removeChannel(iceSignal);
   iceSignal=sb.channel('ice-'+row.id+'-'+user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'call_ice_candidates',filter:'call_id=eq.'+row.id},async payload=>{const c=payload.new;if(c.recipient_id===user.id&&c.sender_id===target.id&&callPc)try{await callPc.addIceCandidate(new RTCIceCandidate(c.candidate));}catch(e){console.warn(e);}}).subscribe();
-  callPc.onicecandidate=async e=>{if(e.candidate&&activeCall){const {error}=await sb.from('call_ice_candidates').insert({call_id:row.id,sender_id:user.id,recipient_id:target.id,candidate:e.candidate.toJSON()});if(error)setStatus(error.message);}};
+  for(const candidate of (row.pendingIce||[])){const {error}=await sb.from('call_ice_candidates').insert({call_id:row.id,sender_id:user.id,recipient_id:target.id,candidate});if(error)setStatus(error.message);}
+  row.pendingIce=[];
   await watchCall(row.id,target.id);$('callStatus').textContent='در انتظار پاسخ طرف مقابل…';
  }catch(e){await stopCall(false);alert('شروع تماس ناموفق بود: '+(e.message||e));}
 }
