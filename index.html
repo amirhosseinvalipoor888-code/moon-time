@@ -40,11 +40,11 @@ body.light-mode .app{background:#f5f7fc}body.light-mode .top,body.light-mode .se
 <section class="settings-screen" id="settingsScreen">
 <header class="settings-head"><button id="closeSettings" aria-label="بازگشت">‹</button><b id="settingsTitle">تنظیمات</b></header>
 <div class="settings-wrap" id="settingsContent">
-<div class="settings-profile"><div class="settings-avatar">☾</div><div><b id="settingsDisplayName">حساب Moon Time</b><div id="settingsEmail" style="color:var(--muted);font-size:12px;margin-top:5px"></div></div></div>
+<div class="settings-profile"><div class="settings-avatar" id="settingsAvatar">☾</div><div><b id="settingsDisplayName">حساب Moon Time</b><div id="settingsEmail" style="color:var(--muted);font-size:12px;margin-top:5px"></div></div></div>
 <div class="settings-group"><h3>حساب کاربری</h3>
 <button class="setting-row" data-setting="editprofile"><span class="ico">✏️</span><span>ویرایش پروفایل<span class="desc">نام نمایشی و اطلاعات حساب</span></span><span class="arrow">‹</span></button>
-<button class="setting-row" data-setting="username"><span class="ico">🪪</span><span>نام کاربری<span class="desc">شناسه قابل‌اشتراک‌گذاری</span></span><span class="arrow">‹</span></button>
-</div>
+<button class="setting-row" data-setting="avatar"><span class="ico">🖼️</span><span>عکس پروفایل<span class="desc">بارگذاری عکس تا ۳ مگابایت</span></span><span class="arrow">‹</span></button><button class="setting-row" data-setting="username"><span class="ico">🪪</span><span>نام کاربری<span class="desc">شناسه قابل‌اشتراک‌گذاری</span></span><span class="arrow">‹</span></button>
+<button class="setting-row" data-setting="password"><span class="ico">🔑</span><span>تغییر رمز عبور</span><span class="arrow">‹</span></button><button class="setting-row" data-setting="email"><span class="ico">✉️</span><span>تغییر ایمیل حساب</span><span class="arrow">‹</span></button></div>
 <div class="settings-group"><h3>تنظیمات</h3>
 <label class="setting-row"><span class="ico">🔔</span><span>اعلان‌ها و صداها<span class="desc">اجازه اعلان مرورگر</span></span><input id="notifyToggle" type="checkbox"></label>
 <label class="setting-row"><span class="ico">🌙</span><span>حالت شب<span class="desc">تغییر پوسته برنامه</span></span><input id="themeToggle" type="checkbox"></label>
@@ -58,7 +58,7 @@ body.light-mode .app{background:#f5f7fc}body.light-mode .top,body.light-mode .se
 <button class="setting-row" data-setting="folders"><span class="ico">📁</span><span>پوشه‌های گفتگو<span class="desc">ساخت فیلترهای محلی برای گفتگوها</span></span><span class="arrow">‹</span></button>
 <button class="setting-row" data-setting="storage"><span class="ico">💾</span><span>فضای ذخیره‌سازی و داده‌ها<span class="desc">پاک‌سازی داده‌های موقت این دستگاه</span></span><span class="arrow">‹</span></button>
 </div>
-<div class="settings-group"><h3>درباره</h3><button class="setting-row" data-setting="about"><span class="ico">☾</span><span>درباره Moon Time<span class="desc">نسخه و اطلاعات برنامه</span></span><span class="arrow">‹</span></button></div>
+<div class="settings-group"><h3>درباره</h3><button class="setting-row" data-setting="export"><span class="ico">📤</span><span>دریافت نسخه‌ای از اطلاعات حساب</span><span class="arrow">‹</span></button><button class="setting-row" data-setting="about"><span class="ico">☾</span><span>درباره Moon Time<span class="desc">نسخه و اطلاعات برنامه</span></span><span class="arrow">‹</span></button></div>
 </div></section>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -119,14 +119,122 @@ $('overflowMenu').addEventListener('click',e=>{const b=e.target.closest('button[
 $('themeToggle').onchange=e=>{document.body.classList.toggle('light-mode',e.target.checked);localStorage.setItem('moon-theme',e.target.checked?'light':'dark');};
 $('languageSelect').onchange=e=>{localStorage.setItem('moon-language',e.target.value);alert(e.target.value==='en'?'English interface translation will be applied as the interface is localized.':'زبان فارسی انتخاب شد.');};
 $('notifyToggle').onchange=async e=>{if(e.target.checked&&'Notification'in window){const p=await Notification.requestPermission();e.target.checked=p==='granted';if(p!=='granted')alert('اجازه اعلان از تنظیمات مرورگر یا گوشی داده نشد.');}else if(!('Notification'in window)){e.target.checked=false;alert('این محیط از اعلان مرورگر پشتیبانی نمی‌کند.');}};
-$('settingsContent').addEventListener('click',async e=>{const b=e.target.closest('[data-setting]');if(!b)return;const k=b.dataset.setting;
-if(k==='editprofile'){const current=user?.user_metadata?.display_name||'';const name=prompt('نام نمایشی جدید:',current);if(name===null||name.trim().length<2)return alert('نام باید حداقل دو نویسه باشد.');const {error}=await sb.auth.updateUser({data:{display_name:name.trim()}});if(error)return alert(error.message);await sb.from('profiles').upsert({id:user.id,display_name:name.trim(),email:user.email},{onConflict:'id'});user={...user,user_metadata:{...user.user_metadata,display_name:name.trim()}};$('settingsDisplayName').textContent=name.trim();alert('نام نمایشی به‌روزرسانی شد.');}
-else if(k==='username')alert('نام کاربری عمومی هنوز در پایگاه داده تعریف نشده است.');
-else if(k==='privacy')alert('ورود به حساب با ایمیل و تأیید Supabase مدیریت می‌شود. گزینه‌های پیشرفته حریم خصوصی هنوز پیاده‌سازی نشده‌اند.');
-else if(k==='sessions')alert('نشست فعلی: '+(user?.email||'')+'\nشناسه کاربر: '+(user?.id||'')+'\nمدیریت و قطع نشست‌های دیگر هنوز فعال نیست.');
-else if(k==='folders'){const name=prompt('نام پوشه جدید را وارد کن:');if(name?.trim()){const folders=JSON.parse(localStorage.getItem('moon-folders')||'[]');folders.push(name.trim());localStorage.setItem('moon-folders',JSON.stringify([...new Set(folders)]));alert('پوشه محلی ساخته شد: '+name.trim());}}
-else if(k==='storage'){if(confirm('داده‌های موقت و تنظیمات محلی این دستگاه پاک شوند؟')){localStorage.removeItem('moon-folders');alert('فهرست پوشه‌های محلی پاک شد. پیام‌های حساب حذف نمی‌شوند.');}}
-else if(k==='about')alert('Moon Time\nنسخه آزمایشی\nپیام‌رسان آنلاین مبتنی بر Supabase');});
+
+let settingsPrefs={};
+async function loadSettingsPrefs(){
+ const {data,error}=await sb.from('user_settings').select('preferences').eq('user_id',user.id).maybeSingle();
+ if(error){console.warn('settings load',error.message);settingsPrefs={};}else settingsPrefs=data?.preferences||{};
+}
+async function saveSettingsPrefs(patch){
+ settingsPrefs={...settingsPrefs,...patch};
+ const {error}=await sb.from('user_settings').upsert({user_id:user.id,preferences:settingsPrefs,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+ if(error)throw error;
+}
+async function openSettings(){
+ menu.classList.remove('open');
+ $('settingsEmail').textContent=user?.email||'';
+ $('settingsDisplayName').textContent=user?.user_metadata?.display_name||user?.email?.split('@')[0]||'حساب Moon Time';
+ $('themeToggle').checked=localStorage.getItem('moon-theme')==='light';
+ document.body.classList.toggle('light-mode',$('themeToggle').checked);
+ $('languageSelect').value=localStorage.getItem('moon-language')||'fa';
+ $('notifyToggle').checked=Notification.permission==='granted';
+ await loadSettingsPrefs();
+ settingsScreen.classList.add('open');
+}
+async function uploadAvatar(){
+ const pick=document.createElement('input');pick.type='file';pick.accept='image/png,image/jpeg,image/webp';
+ pick.onchange=async()=>{
+  const file=pick.files?.[0];if(!file)return;
+  if(file.size>3*1024*1024)return alert('حجم عکس باید کمتر از ۳ مگابایت باشد.');
+  if(!/^image\/(png|jpeg|webp)$/.test(file.type))return alert('فقط PNG، JPG یا WEBP مجاز است.');
+  const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
+  const path=user.id+'/avatar-'+Date.now()+'.'+ext;
+  const {error:upErr}=await sb.storage.from('moon-avatars').upload(path,file,{upsert:true,contentType:file.type});
+  if(upErr)return alert('بارگذاری عکس ناموفق بود: '+upErr.message);
+  const {data}=sb.storage.from('moon-avatars').getPublicUrl(path);
+  const avatarUrl=data.publicUrl;
+  const {error:authErr}=await sb.auth.updateUser({data:{avatar_url:avatarUrl}});
+  if(authErr)return alert('ذخیره عکس در حساب ناموفق بود: '+authErr.message);
+  const {error:profileErr}=await sb.from('profiles').update({avatar_url:avatarUrl}).eq('id',user.id);
+  if(profileErr)return alert('عکس بارگذاری شد اما پروفایل به‌روزرسانی نشد: '+profileErr.message);
+  user={...user,user_metadata:{...user.user_metadata,avatar_url:avatarUrl}};
+  $('settingsAvatar').style.backgroundImage='url("'+avatarUrl+'")';
+  $('settingsAvatar').textContent='';
+  alert('عکس پروفایل ذخیره شد.');
+ };
+ pick.click();
+}
+$('settingsContent').addEventListener('click',async e=>{
+ const b=e.target.closest('[data-setting]');if(!b)return;const k=b.dataset.setting;
+ try{
+  if(k==='editprofile'){
+   const name=prompt('نام نمایشی جدید:',user?.user_metadata?.display_name||'');
+   if(name===null)return;
+   if(name.trim().length<2||name.trim().length>32)return alert('نام باید بین ۲ تا ۳۲ نویسه باشد.');
+   const {error}=await sb.auth.updateUser({data:{display_name:name.trim()}});
+   if(error)throw error;
+   const {error:pe}=await sb.from('profiles').update({display_name:name.trim()}).eq('id',user.id);
+   if(pe)throw pe;
+   user={...user,user_metadata:{...user.user_metadata,display_name:name.trim()}};
+   $('settingsDisplayName').textContent=name.trim();alert('نام نمایشی ذخیره شد.');
+  }else if(k==='username'){
+   const current=(await sb.from('profiles').select('username').eq('id',user.id).maybeSingle()).data?.username||'';
+   const value=prompt('نام کاربری جدید (۳ تا ۲۰ حرف انگلیسی، عدد یا زیرخط):',current);
+   if(value===null)return;
+   const clean=value.trim().replace(/^@/,'').toLowerCase();
+   if(!/^[a-z0-9_]{3,20}$/.test(clean))return alert('فرمت نام کاربری درست نیست.');
+   const {error}=await sb.from('profiles').update({username:clean}).eq('id',user.id);
+   if(error){if(error.code==='23505')return alert('این نام کاربری قبلاً انتخاب شده است.');throw error;}
+   await sb.auth.updateUser({data:{username:clean}});
+   alert('نام کاربری @'+clean+' ذخیره شد.');
+  }else if(k==='avatar'){await uploadAvatar();}
+  else if(k==='password'){
+   const p=prompt('رمز عبور جدید (حداقل ۸ نویسه):');if(p===null)return;
+   if(p.length<8)return alert('رمز عبور باید حداقل ۸ نویسه باشد.');
+   const {error}=await sb.auth.updateUser({password:p});if(error)throw error;alert('رمز عبور تغییر کرد.');
+  }else if(k==='email'){
+   const email=prompt('ایمیل جدید را وارد کن:',user.email||'');if(email===null)return;
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))return alert('ایمیل معتبر نیست.');
+   const {error}=await sb.auth.updateUser({email:email.trim()});if(error)throw error;
+   alert('درخواست تغییر ایمیل ثبت شد. برای نهایی شدن، لینک تأیید ایمیل جدید را باز کن.');
+  }else if(k==='privacy'){
+   const choices=[
+    ['show_online','نمایش وضعیت آنلاین'],
+    ['read_receipts','رسید خواندن پیام‌ها'],
+    ['profile_photo_public','نمایش عمومی عکس پروفایل']
+   ];
+   for(const [key,label] of choices){const enabled=confirm(label+'\n\n'+(settingsPrefs[key]!==false?'فعال است. غیرفعال شود؟':'غیرفعال است. فعال شود؟'));settingsPrefs[key]=!enabled;}
+   await saveSettingsPrefs(settingsPrefs);
+   alert('ترجیحات حریم خصوصی در حساب ذخیره شد. توجه: نمایش آنلاین و رسید خواندن تا زمان اضافه‌شدن این قابلیت‌ها به بخش پیام‌رسان، روی رفتار پیام‌ها اثر اجرایی ندارند.');
+  }else if(k==='sessions'){
+   if(!confirm('تمام نشست‌های دیگر این حساب از سیستم خارج شوند؟ نشست فعلی باقی می‌ماند.'))return;
+   const {error}=await sb.auth.signOut({scope:'others'});if(error)throw error;alert('درخواست خروج از نشست‌های دیگر انجام شد.');
+  }else if(k==='folders'){
+   const folders=Array.isArray(settingsPrefs.folders)?settingsPrefs.folders:[];
+   const action=prompt('پوشه‌های ذخیره‌شده: '+(folders.join('، ')||'هیچ‌کدام')+'\nبرای افزودن، نام پوشه را بنویس؛ برای حذف، نام را با - شروع کن.');
+   if(action===null)return;
+   const value=action.trim();
+   if(value.startsWith('-')){const name=value.slice(1).trim();settingsPrefs.folders=folders.filter(x=>x!==name);}
+   else if(value){if(value.length>30)return alert('نام پوشه حداکثر ۳۰ نویسه باشد.');settingsPrefs.folders=[...new Set([...folders,value])];}
+   await saveSettingsPrefs({folders:settingsPrefs.folders||[]});alert('فهرست پوشه‌ها ذخیره شد.');
+  }else if(k==='storage'){
+   const usage=JSON.stringify(settingsPrefs).length;
+   if(confirm('حجم تنظیمات ذخیره‌شده: حدود '+usage+' بایت. پاک‌سازی کش و داده‌های موقت این دستگاه انجام شود؟ پیام‌ها و حساب حذف نمی‌شوند.')){
+    if('caches'in window){const keys=await caches.keys();await Promise.all(keys.map(x=>caches.delete(x)));}
+    localStorage.removeItem('moon-folders');
+    alert('کش‌های مرورگر پاک شدند. برای اعمال کامل ممکن است برنامه را دوباره باز کنی.');
+   }
+  }else if(k==='export'){
+   const [{data:profile},{data:rooms}]=await Promise.all([
+    sb.from('profiles').select('display_name,email,username,avatar_url,created_at').eq('id',user.id).maybeSingle(),
+    sb.from('conversation_members').select('conversation_id').eq('user_id',user.id)
+   ]);
+   const payload={exported_at:new Date().toISOString(),account:{id:user.id,email:user.email,metadata:user.user_metadata},profile,conversation_memberships:rooms||[],preferences:settingsPrefs};
+   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='moon-time-account-export.json';a.click();URL.revokeObjectURL(a.href);
+  }else if(k==='about')alert('Moon Time\nنسخه آزمایشی آنلاین\nپشتیبانی‌شده: پروفایل، عکس، نام کاربری، رمز و ایمیل، نشست‌ها و ترجیحات ذخیره‌شده.');
+ }catch(err){alert('انجام عملیات ناموفق بود: '+(err.message||err));}
+});
 
 function clearChats(){$('chatList').innerHTML='';}
 async function loadConversations(){
