@@ -46,7 +46,7 @@ async function register(){
   const {data:valid,error:inviteError}=await sb.rpc('check_moon_invite',{p_code:code});
   if(inviteError)throw inviteError;
   if(valid!==true)throw Error('کد معرف معتبر نیست.');
-  const {data,error}=await sb.auth.signUp({email,password,options:{data:{display_name:name},emailRedirectTo:SUPABASE_URL+'/functions/v1/moon-time'}});
+  const {data,error}=await sb.auth.signUp({email,password,options:{data:{display_name:name},emailRedirectTo:"https://cdn.jsdelivr.net/gh/amirhosseinvalipoor888-code/moon-time@main/index.html"}});
   if(error)throw error;
   if(!data.session){showError('حساب ساخته شد. ایمیلت را تأیید کن و سپس از بخش ورود وارد شو.');return;}
   user=data.user;await showApp();
