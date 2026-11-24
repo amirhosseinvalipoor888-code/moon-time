@@ -408,8 +408,10 @@ async function createRoom(kind){
  const title=prompt(kind==='group'?'نام گروه را وارد کن:':'نام کانال را وارد کن:');
  if(!title||!title.trim())return;
  try{
-  const {data:room,error}=await sb.from('conversations').insert({title:title.trim().slice(0,60),is_group:true,kind,created_by:user.id}).select().single();
+  const {data:rows,error}=await sb.rpc('create_moon_conversation',{p_title:title.trim().slice(0,60),p_kind:kind});
   if(error)throw error;
+  const room=Array.isArray(rows)?rows[0]:rows;
+  if(!room?.id)throw Error('سرور گفتگو را نساخت؛ پاسخ خالی دریافت شد.');
   addConversation(room);await openConversation(room.id,room.title,kind);
  }catch(e){setStatus('ساخت گفتگو ناموفق بود: '+e.message);}
 }
@@ -421,9 +423,12 @@ async function createDirect(){
   if(error)throw error;
   const target=Array.isArray(found)?found[0]:found;
   if(!target)throw Error('کاربری با این ایمیل پیدا نشد. ابتدا باید در Moon Time ثبت‌نام کرده باشد.');
-  const {data:room,error:roomError}=await sb.from('conversations').insert({title:target.display_name||'گفتگوی خصوصی',is_group:false,kind:'direct',created_by:user.id}).select().single();
+  if(target.id===user.id)throw Error('نمی‌توانی با حساب خودت گفتگو بسازی.');
+  const {data:rows,error:roomError}=await sb.rpc('create_moon_conversation',{p_title:target.display_name||'گفتگوی خصوصی',p_kind:'direct'});
   if(roomError)throw roomError;
-  const {error:memberError}=await sb.from('conversation_members').insert({conversation_id:room.id,user_id:target.id});
+  const room=Array.isArray(rows)?rows[0]:rows;
+  if(!room?.id)throw Error('سرور گفتگوی خصوصی را نساخت.');
+  const {error:memberError}=await sb.from('conversation_members').upsert({conversation_id:room.id,user_id:target.id},{onConflict:'conversation_id,user_id',ignoreDuplicates:true});
   if(memberError)throw memberError;
   addConversation(room);await openConversation(room.id,room.title,'direct');
  }catch(e){setStatus('شروع گفتگوی خصوصی ناموفق بود: '+e.message);}
@@ -436,8 +441,8 @@ async function addMember(){
   if(error)throw error;
   const target=Array.isArray(found)?found[0]:found;
   if(!target)throw Error('کاربری با این ایمیل پیدا نشد.');
-  const {error:insertError}=await sb.from('conversation_members').insert({conversation_id:currentId,user_id:target.id});
-  if(insertError&&insertError.code!=='23505')throw insertError;
+  const {error:insertError}=await sb.from('conversation_members').upsert({conversation_id:currentId,user_id:target.id},{onConflict:'conversation_id,user_id',ignoreDuplicates:true});
+  if(insertError)throw insertError;
   setStatus('عضو به گفتگو اضافه شد.');
  }catch(e){setStatus('افزودن عضو ناموفق بود: '+e.message);}
 }
