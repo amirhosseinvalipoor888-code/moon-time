@@ -35,7 +35,7 @@ class MainActivity : Activity() {
         // Give the bundled HTML a secure HTTPS origin so Supabase auth/API calls are not sent
         // from the opaque file:// origin used by a normal local WebView page.
         webView.loadDataWithBaseURL(
-            "https://amirhosseinvalipoor888-code.github.io/moon-time/",
+            "https://krmuwbxjsjrezwnhybxa.supabase.co/",
             html,
             "text/html",
             "UTF-8",
