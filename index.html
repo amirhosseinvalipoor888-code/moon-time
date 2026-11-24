@@ -116,9 +116,9 @@ document.addEventListener('click',e=>{if(!menu.contains(e.target)&&!$('mainMenuB
 function openSettings(){menu.classList.remove('open');$('settingsEmail').textContent=user?.email||'';$('settingsDisplayName').textContent=user?.user_metadata?.display_name||user?.email?.split('@')[0]||'حساب Moon Time';$('themeToggle').checked=localStorage.getItem('moon-theme')==='light';document.body.classList.toggle('light-mode',$('themeToggle').checked);$('languageSelect').value=localStorage.getItem('moon-language')||'fa';$('notifyToggle').checked=Notification.permission==='granted';settingsScreen.classList.add('open');}
 $('closeSettings').onclick=()=>settingsScreen.classList.remove('open');
 $('overflowMenu').addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(!b)return;const a=b.dataset.action;menu.classList.remove('open');if(a==='settings')openSettings();else if(a==='newgroup')createRoom('group');else if(a==='newchannel')createRoom('channel');else if(a==='search'){$('search').focus();}else if(a==='contacts'){alert('مخاطبین: برای شروع گفتگوی خصوصی از دکمه «گفتگو» استفاده کن و ایمیل کاربر را وارد کن.');}else if(a==='calls'){alert('تماس صوتی و تصویری هنوز در این نسخه پیاده‌سازی نشده است.');}else if(a==='saved'){alert('پیام‌های ذخیره‌شده هنوز به فضای ابری متصل نشده‌اند.');}});
-$('themeToggle').onchange=e=>{document.body.classList.toggle('light-mode',e.target.checked);localStorage.setItem('moon-theme',e.target.checked?'light':'dark');};
-$('languageSelect').onchange=e=>{localStorage.setItem('moon-language',e.target.value);alert(e.target.value==='en'?'English interface translation will be applied as the interface is localized.':'زبان فارسی انتخاب شد.');};
-$('notifyToggle').onchange=async e=>{if(e.target.checked&&'Notification'in window){const p=await Notification.requestPermission();e.target.checked=p==='granted';if(p!=='granted')alert('اجازه اعلان از تنظیمات مرورگر یا گوشی داده نشد.');}else if(!('Notification'in window)){e.target.checked=false;alert('این محیط از اعلان مرورگر پشتیبانی نمی‌کند.');}};
+$('themeToggle').onchange=async e=>{document.body.classList.toggle('light-mode',e.target.checked);localStorage.setItem('moon-theme',e.target.checked?'light':'dark');if(user)try{await saveSettingsPrefs({theme:e.target.checked?'light':'dark'});}catch(err){setStatus('ذخیره پوسته در حساب انجام نشد: '+err.message);}};
+$('languageSelect').onchange=async e=>{localStorage.setItem('moon-language',e.target.value);if(user)try{await saveSettingsPrefs({language:e.target.value});}catch(err){setStatus('ذخیره زبان انجام نشد: '+err.message);}alert(e.target.value==='en'?'انتخاب زبان انگلیسی ذخیره شد؛ ترجمه کامل رابط هنوز در دست توسعه است.':'زبان فارسی انتخاب و ذخیره شد.');};
+$('notifyToggle').onchange=async e=>{if(e.target.checked&&'Notification'in window){const p=await Notification.requestPermission();e.target.checked=p==='granted';if(p!=='granted')alert('اجازه اعلان از تنظیمات مرورگر یا گوشی داده نشد.');if(user)try{await saveSettingsPrefs({notifications:p==='granted'});}catch(err){setStatus(err.message);}}else if(!('Notification'in window)){e.target.checked=false;alert('این محیط از اعلان مرورگر پشتیبانی نمی‌کند.');}};
 
 let settingsPrefs={};
 async function loadSettingsPrefs(){
@@ -137,8 +137,10 @@ async function openSettings(){
  $('themeToggle').checked=localStorage.getItem('moon-theme')==='light';
  document.body.classList.toggle('light-mode',$('themeToggle').checked);
  $('languageSelect').value=localStorage.getItem('moon-language')||'fa';
- $('notifyToggle').checked=Notification.permission==='granted';
+ $('notifyToggle').checked=('Notification'in window)&&Notification.permission==='granted';
  await loadSettingsPrefs();
+ const avatar=user?.user_metadata?.avatar_url;
+ if(avatar){$('settingsAvatar').style.backgroundImage='url(\\"'+avatar+'\\")';$('settingsAvatar').textContent='';}
  settingsScreen.classList.add('open');
 }
 async function uploadAvatar(){
@@ -203,9 +205,9 @@ $('settingsContent').addEventListener('click',async e=>{
     ['read_receipts','رسید خواندن پیام‌ها'],
     ['profile_photo_public','نمایش عمومی عکس پروفایل']
    ];
-   for(const [key,label] of choices){const enabled=confirm(label+'\n\n'+(settingsPrefs[key]!==false?'فعال است. غیرفعال شود؟':'غیرفعال است. فعال شود؟'));settingsPrefs[key]=!enabled;}
+   for(const [key,label] of choices){const current=settingsPrefs[key]!==false;const answer=prompt(label+'\\nوضعیت فعلی: '+(current?'فعال':'غیرفعال')+'\\nبرای فعال‌سازی 1 و برای غیرفعال‌سازی 0 را وارد کن:',current?'1':'0');if(answer===null)return;if(answer!=='1'&&answer!=='0')return alert('فقط 1 یا 0 وارد کن.');settingsPrefs[key]=answer==='1';}
    await saveSettingsPrefs(settingsPrefs);
-   alert('ترجیحات حریم خصوصی در حساب ذخیره شد. توجه: نمایش آنلاین و رسید خواندن تا زمان اضافه‌شدن این قابلیت‌ها به بخش پیام‌رسان، روی رفتار پیام‌ها اثر اجرایی ندارند.');
+   alert('ترجیحات ذخیره شد. این موارد فعلاً به‌صورت ترجیح حساب نگهداری می‌شوند؛ اعمال آن‌ها بر نمایش آنلاین و رسید خواندن نیازمند تکمیل منطق پیام‌رسان است.');
   }else if(k==='sessions'){
    if(!confirm('تمام نشست‌های دیگر این حساب از سیستم خارج شوند؟ نشست فعلی باقی می‌ماند.'))return;
    const {error}=await sb.auth.signOut({scope:'others'});if(error)throw error;alert('درخواست خروج از نشست‌های دیگر انجام شد.');
