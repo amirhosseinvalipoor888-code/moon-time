@@ -524,6 +524,7 @@ private fun MoonNativeApp() {
                             Text("MOON TIME", color = White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
                             Text(if (online) "متصل به گفتگو" else "آماده اتصال", color = Muted, fontSize = 10.sp)
                         }
+                        IconButton(onClick = { dialog = "menu" }) { Icon(Icons.Default.MoreVert, null, tint = White) }
                         IconButton(onClick = { dialog = "contacts" }) { Icon(Icons.Default.Contacts, null, tint = White) }
                         IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.PersonAdd, null, tint = White) }
                         IconButton(onClick = { dialog = "group" }) { Icon(Icons.Default.GroupAdd, null, tint = White) }
@@ -660,6 +661,8 @@ private fun MoonNativeApp() {
                     "new" -> "افزودن عضو"
                     "emoji" -> "ایموجی‌ها"
                     "contacts" -> "مخاطبین من"
+                    "menu" -> "منوی اصلی"
+                    "settings" -> "تنظیمات Moon Time"
                     else -> "Moon Time"
                 }
                 AlertDialog(
@@ -667,7 +670,30 @@ private fun MoonNativeApp() {
                     containerColor = Panel,
                     title = { Text(dialogTitle, color = White) },
                     text = {
-                        if (dialog == "emoji") {
+                        if (dialog == "menu") {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("مخاطبین" to "contacts", "گفتگوی خصوصی جدید" to "direct", "ساخت گروه" to "group", "ساخت کانال" to "channel", "تنظیمات" to "settings", "به‌روزرسانی گفتگوها" to "refresh").forEach { (label, action) ->
+                                    Text(label, color = Cyan, modifier = Modifier.fillMaxWidth().clickable {
+                                        dialog = action
+                                        if (action == "refresh") { dialog = ""; refreshRooms() }
+                                    }.padding(vertical = 8.dp))
+                                }
+                            }
+                        } else if (dialog == "settings") {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("حساب فعال: ${api.email ?: "—"}", color = White)
+                                Text("شناسه حساب: ${api.userId ?: "—"}", color = Muted, fontSize = 11.sp)
+                                Text("برای تازه‌سازی فهرست گفتگوها، گزینه زیر را انتخاب کن.", color = Muted)
+                                Button(onClick = { dialog = ""; refreshRooms() }, modifier = Modifier.fillMaxWidth()) { Text("همگام‌سازی گفتگوها") }
+                                Button(onClick = {
+                                    dialog = ""
+                                    api.logout()
+                                    realtime?.close()
+                                    realtime = null
+                                    logged = false
+                                }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83E55))) { Text("خروج از حساب") }
+                            }
+                        } else if (dialog == "emoji") {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 listOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂","🤩","😎","🫶","💫","🌈","🪐","👾","🎊","💯","❤️").chunked(5).forEach { row ->
                                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
