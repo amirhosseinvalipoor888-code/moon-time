@@ -31,6 +31,30 @@ class NotificationSyncWorker(context: Context, params: WorkerParameters) : Corou
         val uid = prefs.getString("uid", null) ?: return Result.success()
         val refresh = prefs.getString("refresh", null)
         return try {
+            val pendingRaw = prefs.getString("moon_pending_messages", "[]") ?: "[]"
+            val pending = JSONArray(pendingRaw)
+            val remaining = JSONArray()
+            for (i in 0 until pending.length()) {
+                val item = pending.getJSONObject(i)
+                val body = JSONObject()
+                    .put("conversation_id", item.getString("conversation_id"))
+                    .put("sender_id", uid)
+                    .put("body", item.getString("body"))
+                    .put("message_kind", "text")
+                val sendRequest = Request.Builder()
+                    .url(base + "/rest/v1/messages")
+                    .header("apikey", key)
+                    .header("Authorization", "Bearer " + access)
+                    .header("Content-Type", "application/json")
+                    .header("Prefer", "return=minimal")
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val sendResponse = client.newCall(sendRequest).execute()
+                if (!sendResponse.isSuccessful) remaining.put(item)
+                sendResponse.close()
+            }
+            prefs.edit().putString("moon_pending_messages", remaining.toString()).apply()
+
             var last = prefs.getString("last_notification_check", null)
                 ?: Instant.now().minusSeconds(15 * 60).toString()
             var membersResponse = call("/rest/v1/conversation_members?select=conversation_id&user_id=eq.$uid", access)
