@@ -11,58 +11,160 @@
 </style></head>
 <body>
 <div class="auth" id="authGate"><div class="auth-card"><div class="moon">☾</div><h1>Moon Time</h1><p>برای ساخت حساب آنلاین یا ورود، اطلاعاتت را وارد کن.</p><input id="inviteInput" placeholder="کد معرف (فقط ثبت‌نام)" autocomplete="off"><input id="regName" placeholder="نام نمایشی" maxlength="32"><input id="emailInput" type="email" placeholder="ایمیل"><input id="passwordInput" type="password" placeholder="رمز عبور (حداقل ۸ کاراکتر)"><button id="enterBtn">ثبت‌نام آنلاین</button><button id="loginBtn" style="background:#293252">ورود به حساب</button><p class="auth-error" id="authError"></p></div></div>
-<div class="app" id="appRoot"><aside class="side" id="side"><div class="brand"><div class="moon">☾</div><div><b>Moon Time</b><small>ارتباطی فراتر از مرزها</small></div></div><input class="search" id="search" placeholder="جست‌وجوی گفتگوها…"><div class="section">گفتگوها</div><div class="side-tools"><button class="icon" id="newGroup">＋ گروه</button><button class="icon" id="newChannel">＋ کانال</button></div><div id="chatList">
-<div class="chat active" data-name="یادداشت‌های من" data-avatar="✦"><div class="avatar">✦</div><div class="meta"><b>یادداشت‌های من</b><p>به Moon Time خوش آمدی</p></div><span class="time">اکنون</span></div>
-<div class="chat" data-name="گفتگوی عمومی" data-avatar="#"><div class="avatar">#</div><div class="meta"><b>گفتگوی عمومی</b><p>فضای گفتگوی آزمایشی</p></div><span class="time">۱۲:۳۰</span></div>
-<div class="chat" data-name="تیم Moon" data-avatar="M"><div class="avatar">M</div><div class="meta"><b>تیم Moon</b><p>نسخه نمایشی برنامه آماده است</p></div><span class="time">دیروز</span></div>
-<div class="chat" data-name="کانال فناوری" data-avatar="⌘"><div class="avatar">⌘</div><div class="meta"><b>کانال فناوری</b><p>خبرها و ایده‌های تازه</p></div><span class="time">دیروز</span></div>
-</div><div class="section">دسترسی سریع</div><div class="chat" data-name="ذخیره‌شده‌ها" data-avatar="▣"><div class="avatar">▣</div><div class="meta"><b>پیام‌های ذخیره‌شده</b><p>یادداشت‌ها و فایل‌های شخصی</p></div></div></aside>
-<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small>محیط آزمایشی • محلی</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon" id="connectBtn" title="اتصال مستقیم">اتصال</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>نسخه اولیه رابط کاربری آماده است.<br>پیام‌ها فعلاً فقط روی همین دستگاه ذخیره می‌شوند.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">آفلاین محلی • برای پیام‌رسانی مستقیم، دو دستگاه را با «اتصال» جفت کن.</div></main></div>
+<div class="app" id="appRoot"><aside class="side" id="side"><div class="brand"><div class="moon">☾</div><div><b>Moon Time</b><small>ارتباطی فراتر از مرزها</small></div></div><input class="search" id="search" placeholder="جست‌وجوی گفتگوها…"><div class="section">گفتگوها</div><div class="side-tools"><button class="icon" id="newChat">＋ گفتگو</button><button class="icon" id="newGroup">＋ گروه</button><button class="icon" id="newChannel">＋ کانال</button></div><div id="chatList"></div><div class="section">دسترسی سریع</div><div class="chat" data-name="ذخیره‌شده‌ها" data-avatar="▣"><div class="avatar">▣</div><div class="meta"><b>پیام‌های ذخیره‌شده</b><p>یادداشت‌ها و فایل‌های شخصی</p></div></div></aside>
+<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small id="chatStatus">آماده اتصال</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon" id="addMemberBtn" title="افزودن عضو">افزودن عضو</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button><button class="icon" id="logoutBtn" title="خروج">خروج</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">آفلاین محلی • برای پیام‌رسانی مستقیم، دو دستگاه را با «اتصال» جفت کن.</div></main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+'use strict';
 const SUPABASE_URL="https://krmuwbxjsjrezwnhybxa.supabase.co";
 const SUPABASE_KEY="sb_publishable_v-3Kw8OKJszThrMlQ1ojBQ_ixj1BbFk";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-const side=document.getElementById('side'),main=document.getElementById('main'),messages=document.getElementById('messages'),input=document.getElementById('messageInput');
-let user=null,currentId=null,currentName='گفتگوها',subscription=null;
-const status=document.getElementById('netStatus');
-const err=document.getElementById('authError');
-function showError(t){err.textContent=t}
-async function showApp(){document.getElementById('authGate').style.display='none';document.getElementById('appRoot').style.display='grid';document.getElementById('currentName').textContent=user.email||'حساب من';status.textContent='آنلاین • متصل به سرور Moon Time';await sb.from('profiles').upsert({id:user.id,display_name:user.user_metadata?.display_name||user.email?.split('@')[0]||'کاربر',email:user.email},{onConflict:'id'});loadConversations()}
-async function register(){try{
- const code=document.getElementById('inviteInput').value.trim().toUpperCase(),name=document.getElementById('regName').value.trim(),email=document.getElementById('emailInput').value.trim(),password=document.getElementById('passwordInput').value;
- if(name.length<2)throw Error('نام نمایشی را وارد کن.');
- if(password.length<8)throw Error('رمز عبور باید حداقل ۸ نویسه باشد.');
- const {data:valid,error:ve}=await sb.rpc('check_moon_invite',{p_code:code});if(ve)throw ve;if(valid!==true)throw Error('کد معرف معتبر نیست.');
- const {data,error}=await sb.auth.signUp({email,password,options:{data:{display_name:name}}});if(error)throw error;
- if(!data.session){showError('ثبت‌نام انجام شد. ایمیلت را تأیید کن، سپس وارد شو.');return}
- user=data.user;await sb.from('profiles').upsert({id:user.id,display_name:name,email:user.email},{onConflict:'id'});showApp();
- }catch(e){showError(e.message||'ثبت‌نام انجام نشد.')}}
-async function login(){try{const email=document.getElementById('emailInput').value.trim(),password=document.getElementById('passwordInput').value;
- const {data,error}=await sb.auth.signInWithPassword({email,password});if(error)throw error;user=data.user;
- const name=document.getElementById('regName').value.trim();if(name)await sb.from('profiles').upsert({id:user.id,display_name:name,email:user.email},{onConflict:'id'});
- showApp()}catch(e){showError(e.message||'ورود انجام نشد.')}}
-function clearList(){document.getElementById('chatList').innerHTML=''}
-async function loadConversations(){clearList();const {data:members,error}=await sb.from('conversation_members').select('conversation_id').eq('user_id',user.id);if(error){status.textContent='خطا در دریافت گفتگوها: '+error.message;return}
- const ids=(members||[]).map(x=>x.conversation_id);if(!ids.length){messages.innerHTML='<div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع یک گروه یا گفتگو بساز.</div>';return}
- const {data:rooms,error:e}=await sb.from('conversations').select('id,title,is_group').in('id',ids).order('created_at',{ascending:false});if(e){status.textContent=e.message;return}
- (rooms||[]).forEach(room=>addConversation(room));if(rooms&&rooms.length)openConversation(rooms[0].id,rooms[0].title||'گفتگو')}
-function addConversation(room){const el=document.createElement('div');el.className='chat';el.dataset.id=room.id;el.dataset.name=room.title||'گفتگو';el.dataset.avatar=room.is_group?'👥':'◉';el.innerHTML='<div class="avatar"></div><div class="meta"><b></b><p>گفتگوی آنلاین</p></div><span class="time">آنلاین</span>';el.querySelector('.avatar').textContent=el.dataset.avatar;el.querySelector('b').textContent=el.dataset.name;el.onclick=()=>openConversation(room.id,el.dataset.name);document.getElementById('chatList').appendChild(el)}
-async function createRoom(kind){const title=prompt(kind==='group'?'نام گروه:':'نام کانال:');if(!title||!title.trim())return;const {data:room,error}=await sb.from('conversations').insert({title:title.trim().slice(0,60),is_group:true,created_by:user.id}).select().single();if(error){alert(error.message);return}const {error:me}=await sb.from('conversation_members').insert({conversation_id:room.id,user_id:user.id});if(me){alert(me.message);return}addConversation(room);openConversation(room.id,room.title)}
-async function openConversation(id,title){currentId=id;currentName=title;document.getElementById('currentName').textContent=title;document.getElementById('currentAvatar').textContent='◉';document.querySelectorAll('#chatList .chat').forEach(x=>x.classList.toggle('active',x.dataset.id===id));if(subscription){await sb.removeChannel(subscription);subscription=null}
- await loadMessages();subscription=sb.channel('moon-chat-'+id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'conversation_id=eq.'+id},payload=>{if(payload.new.sender_id!==user.id)appendMessage(payload.new,false)}).subscribe();
- if(innerWidth<=700){side.classList.add('hidden');main.classList.add('show')}}
-function appendMessage(m,mine){const d=document.createElement('div');d.className='bubble'+(mine?' mine':'');d.textContent=m.body;const stamp=document.createElement('span');stamp.className='stamp';stamp.textContent=new Date(m.created_at).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'});d.appendChild(stamp);messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-async function loadMessages(){messages.innerHTML='';const {data,error}=await sb.from('messages').select('id,body,sender_id,created_at').eq('conversation_id',currentId).order('created_at',{ascending:true}).limit(200);if(error){status.textContent=error.message;return}if(!data||!data.length){messages.innerHTML='<div class="welcome">هنوز پیامی نیست. اولین پیام را بفرست.</div>';return}data.forEach(m=>appendMessage(m,m.sender_id===user.id))}
-document.getElementById('form').addEventListener('submit',async e=>{e.preventDefault();const body=input.value.trim();if(!body||!currentId)return;if(body.length>5000){alert('پیام بیش از حد طولانی است.');return}const {data,error}=await sb.from('messages').insert({conversation_id:currentId,sender_id:user.id,body}).select().single();if(error){status.textContent='ارسال ناموفق: '+error.message;return}input.value='';appendMessage(data,true)});
-document.getElementById('enterBtn').onclick=register;document.getElementById('loginBtn').onclick=login;
-document.getElementById('newGroup').onclick=()=>createRoom('group');document.getElementById('newChannel').onclick=()=>createRoom('channel');
-document.getElementById('profileBtn').onclick=async()=>{const {data}=await sb.from('profiles').select('display_name,email').eq('id',user.id).maybeSingle();alert('حساب آنلاین\n'+(data?.display_name||'')+'\n'+user.email)};
-document.getElementById('connectBtn').onclick=()=>alert('چت آنلاین سروری فعال است؛ اتصال دستی همتا دیگر لازم نیست.');
-document.getElementById('back').onclick=()=>{main.classList.remove('show');side.classList.remove('hidden')};
-document.getElementById('search').addEventListener('input',e=>{const q=e.target.value.trim();document.querySelectorAll('#chatList .chat').forEach(x=>x.style.display=x.dataset.name.includes(q)?'flex':'none')});
-sb.auth.getSession().then(async({data})=>{if(data.session){user=data.session.user;showApp()}else{document.getElementById('appRoot').style.display='none'}});
-sb.auth.onAuthStateChange((_event,session)=>{if(session){user=session.user}else{user=null;document.getElementById('authGate').style.display='grid';document.getElementById('appRoot').style.display='none'}});
+const $=id=>document.getElementById(id);
+const side=$('side'),main=$('main'),messages=$('messages'),input=$('messageInput'),status=$('netStatus');
+let user=null,currentId=null,currentKind=null,subscription=null,opening=false;
+function showError(message){$('authError').textContent=message}
+function setStatus(message){status.textContent=message}
+function showWelcome(message){messages.innerHTML='';const box=document.createElement('div');box.className='welcome';box.innerHTML='<div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>';box.append(document.createTextNode(message));messages.appendChild(box)}
+async function showApp(){
+  if(!user)return;
+  $('authGate').style.display='none';$('appRoot').style.display='grid';
+  $('currentName').textContent=user.email||'حساب من';
+  $('chatStatus').textContent='حساب آنلاین';
+  const profile=await sb.from('profiles').upsert({id:user.id,display_name:user.user_metadata?.display_name||user.email?.split('@')[0]||'کاربر',email:user.email},{onConflict:'id'});
+  if(profile.error)setStatus('ورود برقرار است؛ خطای پروفایل: '+profile.error.message);
+  await loadConversations();
+}
+async function register(){
+ try{
+  showError('');
+  const code=$('inviteInput').value.trim().toUpperCase(),name=$('regName').value.trim(),email=$('emailInput').value.trim(),password=$('passwordInput').value;
+  if(code.length<4)throw Error('کد معرف را وارد کن.');
+  if(name.length<2)throw Error('نام نمایشی باید حداقل ۲ نویسه باشد.');
+  if(!email)throw Error('ایمیل را وارد کن.');
+  if(password.length<8)throw Error('رمز عبور باید حداقل ۸ نویسه باشد.');
+  const {data:valid,error:inviteError}=await sb.rpc('check_moon_invite',{p_code:code});
+  if(inviteError)throw inviteError;
+  if(valid!==true)throw Error('کد معرف معتبر نیست.');
+  const {data,error}=await sb.auth.signUp({email,password,options:{data:{display_name:name}}});
+  if(error)throw error;
+  if(!data.session){showError('حساب ساخته شد. ایمیلت را تأیید کن و سپس از بخش ورود وارد شو.');return;}
+  user=data.user;await showApp();
+ }catch(e){showError(e.message||'ثبت‌نام انجام نشد.');}
+}
+async function login(){
+ try{
+  showError('');
+  const email=$('emailInput').value.trim(),password=$('passwordInput').value;
+  if(!email||!password)throw Error('ایمیل و رمز عبور را وارد کن.');
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error)throw error;
+  user=data.user;await showApp();
+ }catch(e){showError(e.message||'ورود انجام نشد.');}
+}
+function clearChats(){$('chatList').innerHTML='';}
+async function loadConversations(){
+ if(!user)return;
+ clearChats();
+ const {data:members,error}=await sb.from('conversation_members').select('conversation_id').eq('user_id',user.id);
+ if(error){setStatus('خطا در دریافت گفتگوها: '+error.message);showWelcome('دریافت گفتگوها ناموفق بود.');return;}
+ const ids=[...new Set((members||[]).map(x=>x.conversation_id))];
+ if(!ids.length){currentId=null;currentKind=null;showWelcome('برای شروع، از دکمه‌های سمت راست گفتگو یا گروه بساز.');return;}
+ const {data:rooms,error:roomError}=await sb.from('conversations').select('id,title,is_group,kind,created_at').in('id',ids).order('created_at',{ascending:false});
+ if(roomError){setStatus('خطا در بارگذاری گفتگوها: '+roomError.message);return;}
+ (rooms||[]).forEach(addConversation);
+ if(rooms&&rooms.length)await openConversation(rooms[0].id,rooms[0].title||'گفتگو',rooms[0].kind||'group');
+ else showWelcome('هنوز گفتگویی وجود ندارد.');
+}
+function addConversation(room){
+ const list=$('chatList');
+ if(list.querySelector('[data-id="'+room.id+'"]'))return;
+ const el=document.createElement('div');el.className='chat';el.dataset.id=room.id;el.dataset.name=room.title||'گفتگو';el.dataset.kind=room.kind||'group';
+ const avatar=room.kind==='channel'?'▣':room.kind==='direct'?'◉':'👥';
+ const a=document.createElement('div');a.className='avatar';a.textContent=avatar;
+ const meta=document.createElement('div');meta.className='meta';const b=document.createElement('b');b.textContent=el.dataset.name;
+ const p=document.createElement('p');p.textContent=room.kind==='channel'?'کانال':room.kind==='direct'?'گفتگوی خصوصی':'گروه';
+ meta.append(b,p);el.append(a,meta);el.onclick=()=>openConversation(room.id,el.dataset.name,el.dataset.kind);list.appendChild(el);
+}
+async function createRoom(kind){
+ const title=prompt(kind==='group'?'نام گروه را وارد کن:':'نام کانال را وارد کن:');
+ if(!title||!title.trim())return;
+ try{
+  const {data:room,error}=await sb.from('conversations').insert({title:title.trim().slice(0,60),is_group:true,kind,created_by:user.id}).select().single();
+  if(error)throw error;
+  const {error:memberError}=await sb.from('conversation_members').insert({conversation_id:room.id,user_id:user.id});
+  if(memberError)throw memberError;
+  addConversation(room);await openConversation(room.id,room.title,kind);
+ }catch(e){setStatus('ساخت گفتگو ناموفق بود: '+e.message);}
+}
+async function createDirect(){
+ const email=prompt('ایمیل دقیق کاربری را وارد کن:');
+ if(!email||!email.trim())return;
+ try{
+  const {data:found,error}=await sb.rpc('lookup_profile_by_email',{p_email:email.trim()});
+  if(error)throw error;
+  const target=Array.isArray(found)?found[0]:found;
+  if(!target)throw Error('کاربری با این ایمیل پیدا نشد. ابتدا باید در Moon Time ثبت‌نام کرده باشد.');
+  const {data:room,error:roomError}=await sb.from('conversations').insert({title:target.display_name||'گفتگوی خصوصی',is_group:false,kind:'direct',created_by:user.id}).select().single();
+  if(roomError)throw roomError;
+  const {error:membersError}=await sb.from('conversation_members').insert([{conversation_id:room.id,user_id:user.id},{conversation_id:room.id,user_id:target.id}]);
+  if(membersError)throw membersError;
+  addConversation(room);await openConversation(room.id,room.title,'direct');
+ }catch(e){setStatus('شروع گفتگوی خصوصی ناموفق بود: '+e.message);}
+}
+async function addMember(){
+ if(!currentId||!currentKind||currentKind==='direct'){setStatus('ابتدا یک گروه یا کانال را باز کن.');return;}
+ const email=prompt('ایمیل عضو جدید را وارد کن:');if(!email||!email.trim())return;
+ try{
+  const {data:found,error}=await sb.rpc('lookup_profile_by_email',{p_email:email.trim()});
+  if(error)throw error;
+  const target=Array.isArray(found)?found[0]:found;
+  if(!target)throw Error('کاربری با این ایمیل پیدا نشد.');
+  const {error:insertError}=await sb.from('conversation_members').insert({conversation_id:currentId,user_id:target.id});
+  if(insertError&&insertError.code!=='23505')throw insertError;
+  setStatus('عضو به گفتگو اضافه شد.');
+ }catch(e){setStatus('افزودن عضو ناموفق بود: '+e.message);}
+}
+async function openConversation(id,title,kind){
+ if(opening)return;opening=true;
+ try{
+  currentId=id;currentKind=kind; $('currentName').textContent=title;$('currentAvatar').textContent=kind==='channel'?'▣':kind==='direct'?'◉':'👥';
+  $('chatStatus').textContent=kind==='channel'?'کانال':kind==='direct'?'گفتگوی خصوصی':'گروه';
+  document.querySelectorAll('#chatList .chat').forEach(x=>x.classList.toggle('active',x.dataset.id===id));
+  if(subscription){await sb.removeChannel(subscription);subscription=null;}
+  await loadMessages(id);
+  subscription=sb.channel('moon-time-'+id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'conversation_id=eq.'+id},payload=>{
+   if(payload.new.sender_id!==user.id)appendMessage(payload.new,false);
+  }).subscribe(state=>{if(state==='CHANNEL_ERROR'||state==='TIMED_OUT')setStatus('اتصال زنده قطع شد؛ پیام‌ها با بارگذاری مجدد قابل دریافت‌اند.');});
+  if(innerWidth<=700){side.classList.add('hidden');main.classList.add('show');}
+ }finally{opening=false;}
+}
+function appendMessage(m,mine){
+ const d=document.createElement('div');d.className='bubble'+(mine?' mine':'');d.append(document.createTextNode(m.body));
+ const stamp=document.createElement('span');stamp.className='stamp';stamp.textContent=new Date(m.created_at).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'});d.appendChild(stamp);messages.appendChild(d);messages.scrollTop=messages.scrollHeight;
+}
+async function loadMessages(id){
+ messages.innerHTML='';
+ const {data,error}=await sb.from('messages').select('id,body,sender_id,created_at').eq('conversation_id',id).order('created_at',{ascending:true}).limit(200);
+ if(error){setStatus('خطا در دریافت پیام‌ها: '+error.message);return;}
+ if(!data||!data.length){showWelcome('هنوز پیامی در این گفتگو نیست. اولین پیام را بفرست.');return;}
+ data.forEach(m=>appendMessage(m,m.sender_id===user.id));
+}
+$('form').addEventListener('submit',async e=>{
+ e.preventDefault();const body=input.value.trim();if(!body||!currentId)return;
+ if(body.length>5000){setStatus('پیام بیش از ۵۰۰۰ نویسه است.');return;}
+ const {data,error}=await sb.from('messages').insert({conversation_id:currentId,sender_id:user.id,body}).select().single();
+ if(error){setStatus('ارسال پیام ناموفق بود: '+error.message);return;}
+ input.value='';appendMessage(data,true);setStatus('پیام ارسال شد.');
+});
+$('enterBtn').onclick=register;$('loginBtn').onclick=login;
+$('newChat').onclick=createDirect;$('newGroup').onclick=()=>createRoom('group');$('newChannel').onclick=()=>createRoom('channel');
+$('addMemberBtn').onclick=addMember;
+$('profileBtn').onclick=async()=>{const {data,error}=await sb.from('profiles').select('display_name,email,role').eq('id',user.id).maybeSingle();if(error){setStatus(error.message);return;}alert('نام: '+(data?.display_name||'')+'\nایمیل: '+user.email+'\nنقش: '+(data?.role||'member'));};
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();if(subscription)await sb.removeChannel(subscription);user=null;currentId=null;$('appRoot').style.display='none';$('authGate').style.display='grid';};
+$('back').onclick=()=>{main.classList.remove('show');side.classList.remove('hidden');};
+$('search').addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase();document.querySelectorAll('#chatList .chat').forEach(x=>x.style.display=x.dataset.name.toLocaleLowerCase().includes(q)?'flex':'none');});
+sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){user=null;$('authGate').style.display='grid';$('appRoot').style.display='none';}});
+(async()=>{try{const {data,error}=await sb.auth.getSession();if(error)throw error;if(data.session){user=data.session.user;await showApp();}else{$('appRoot').style.display='none';}}catch(e){showError('اتصال به سرور برقرار نشد: '+e.message);}})();
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 if(innerWidth>700)main.classList.add('show');
 </script></body></html>
