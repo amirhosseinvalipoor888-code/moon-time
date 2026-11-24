@@ -18,7 +18,7 @@
 'use strict';
 const SUPABASE_URL="https://krmuwbxjsjrezwnhybxa.supabase.co";
 const SUPABASE_KEY="sb_publishable_v-3Kw8OKJszThrMlQ1ojBQ_ixj1BbFk";
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const $=id=>document.getElementById(id);
 const side=$('side'),main=$('main'),messages=$('messages'),input=$('messageInput'),status=$('netStatus');
 let user=null,currentId=null,currentKind=null,subscription=null,opening=false;
@@ -92,8 +92,6 @@ async function createRoom(kind){
  try{
   const {data:room,error}=await sb.from('conversations').insert({title:title.trim().slice(0,60),is_group:true,kind,created_by:user.id}).select().single();
   if(error)throw error;
-  const {error:memberError}=await sb.from('conversation_members').insert({conversation_id:room.id,user_id:user.id});
-  if(memberError)throw memberError;
   addConversation(room);await openConversation(room.id,room.title,kind);
  }catch(e){setStatus('ساخت گفتگو ناموفق بود: '+e.message);}
 }
@@ -107,8 +105,8 @@ async function createDirect(){
   if(!target)throw Error('کاربری با این ایمیل پیدا نشد. ابتدا باید در Moon Time ثبت‌نام کرده باشد.');
   const {data:room,error:roomError}=await sb.from('conversations').insert({title:target.display_name||'گفتگوی خصوصی',is_group:false,kind:'direct',created_by:user.id}).select().single();
   if(roomError)throw roomError;
-  const {error:membersError}=await sb.from('conversation_members').insert([{conversation_id:room.id,user_id:user.id},{conversation_id:room.id,user_id:target.id}]);
-  if(membersError)throw membersError;
+  const {error:memberError}=await sb.from('conversation_members').insert({conversation_id:room.id,user_id:target.id});
+  if(memberError)throw memberError;
   addConversation(room);await openConversation(room.id,room.title,'direct');
  }catch(e){setStatus('شروع گفتگوی خصوصی ناموفق بود: '+e.message);}
 }
@@ -132,10 +130,12 @@ async function openConversation(id,title,kind){
   $('chatStatus').textContent=kind==='channel'?'کانال':kind==='direct'?'گفتگوی خصوصی':'گروه';
   document.querySelectorAll('#chatList .chat').forEach(x=>x.classList.toggle('active',x.dataset.id===id));
   if(subscription){await sb.removeChannel(subscription);subscription=null;}
-  await loadMessages(id);
+  const seen=new Set();
+  messages.innerHTML='';
   subscription=sb.channel('moon-time-'+id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'conversation_id=eq.'+id},payload=>{
-   if(payload.new.sender_id!==user.id)appendMessage(payload.new,false);
+   if(payload.new.sender_id!==user.id&&!seen.has(payload.new.id)){seen.add(payload.new.id);appendMessage(payload.new,false);}
   }).subscribe(state=>{if(state==='CHANNEL_ERROR'||state==='TIMED_OUT')setStatus('اتصال زنده قطع شد؛ پیام‌ها با بارگذاری مجدد قابل دریافت‌اند.');});
+  await loadMessages(id,seen);
   if(innerWidth<=700){side.classList.add('hidden');main.classList.add('show');}
  }finally{opening=false;}
 }
@@ -143,12 +143,11 @@ function appendMessage(m,mine){
  const d=document.createElement('div');d.className='bubble'+(mine?' mine':'');d.append(document.createTextNode(m.body));
  const stamp=document.createElement('span');stamp.className='stamp';stamp.textContent=new Date(m.created_at).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'});d.appendChild(stamp);messages.appendChild(d);messages.scrollTop=messages.scrollHeight;
 }
-async function loadMessages(id){
- messages.innerHTML='';
+async function loadMessages(id,seen=new Set()){
  const {data,error}=await sb.from('messages').select('id,body,sender_id,created_at').eq('conversation_id',id).order('created_at',{ascending:true}).limit(200);
  if(error){setStatus('خطا در دریافت پیام‌ها: '+error.message);return;}
  if(!data||!data.length){showWelcome('هنوز پیامی در این گفتگو نیست. اولین پیام را بفرست.');return;}
- data.forEach(m=>appendMessage(m,m.sender_id===user.id));
+ data.forEach(m=>{if(!seen.has(m.id)){seen.add(m.id);appendMessage(m,m.sender_id===user.id);}});
 }
 $('form').addEventListener('submit',async e=>{
  e.preventDefault();const body=input.value.trim();if(!body||!currentId)return;
