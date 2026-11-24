@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,12 +29,16 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import coil.ImageLoader
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -65,7 +70,7 @@ private val Muted = Color(0xFF9BA8C8)
 private val http = OkHttpClient.Builder().connectTimeout(25, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).build()
 
 data class Room(val id:String,val title:String,val kind:String)
-data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null,val mediaUrl:String?=null)
+data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null,val mediaUrl:String?=null,val pending:Boolean=false)
 data class MoonContact(val id:String,val name:String,val email:String)
 
 class MainActivity : ComponentActivity() {
@@ -181,6 +186,29 @@ private class MoonApi(context:Context) {
         if(found.length()==0)error("کاربری با این ایمیل پیدا نشد.")
         request("/rest/v1/conversation_members","POST",JSONObject().put("conversation_id",room.id).put("user_id",found.getJSONObject(0).getString("id")).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
     }
+    fun queueText(room:Room, text:String):Msg {
+        userId ?: error("ابتدا وارد شو")
+        val items = try { JSONArray(prefs.getString("moon_pending_messages","[]") ?: "[]") } catch (_:Exception) { JSONArray() }
+        val id = "local-" + UUID.randomUUID().toString()
+        val now = java.time.Instant.now().toString()
+        items.put(JSONObject().put("id",id).put("conversation_id",room.id).put("body",text).put("created_at",now))
+        prefs.edit().putString("moon_pending_messages",items.toString()).apply()
+        return Msg(id,text,true,now,pending=true)
+    }
+    fun pendingFor(roomId:String):List<Msg> {
+        val items = try { JSONArray(prefs.getString("moon_pending_messages","[]") ?: "[]") } catch (_:Exception) { JSONArray() }
+        return (0 until items.length()).map { items.getJSONObject(it) }.filter { it.optString("conversation_id")==roomId }.map { Msg(it.optString("id"),it.optString("body"),true,it.optString("created_at"),pending=true) }
+    }
+    suspend fun syncPending() {
+        val items = try { JSONArray(prefs.getString("moon_pending_messages","[]") ?: "[]") } catch (_:Exception) { JSONArray() }
+        val remaining = JSONArray()
+        for (i in 0 until items.length()) {
+            val item = items.getJSONObject(i)
+            try { request("/rest/v1/messages","POST",JSONObject().put("conversation_id",item.getString("conversation_id")).put("sender_id",userId).put("body",item.getString("body")).put("message_kind","text").toString(),true,"application/json",mapOf("Prefer" to "return=minimal")) }
+            catch (_:Exception) { remaining.put(item) }
+        }
+        prefs.edit().putString("moon_pending_messages",remaining.toString()).apply()
+    }
     suspend fun messages(room:Room):List<Msg> {
         val uid=userId?:return emptyList()
         val a=JSONArray(request("/rest/v1/messages?select=id,body,sender_id,created_at,message_kind,attachment_path,attachment_name&conversation_id=eq.${room.id}&order=created_at.asc&limit=200"))
@@ -256,6 +284,7 @@ private fun MoonNativeApp() {
     var dialogValue by remember { mutableStateOf("") }
     var realtime by remember { mutableStateOf<Realtime?>(null) }
     var online by remember { mutableStateOf(false) }
+    val mediaLoader = remember(context) { ImageLoader.Builder(context).components { if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory()) }.build() }
     var contactEmail by remember { mutableStateOf("") }
     var contacts by remember { mutableStateOf(run {
         val saved = context.getSharedPreferences("moon_contacts", Context.MODE_PRIVATE).getString("items", "[]") ?: "[]"
@@ -265,7 +294,7 @@ private fun MoonNativeApp() {
     fun connectRoom(room: Room) {
         scope.launch {
             try {
-                messages = api.messages(room).map { m ->
+                messages = (api.messages(room) + api.pendingFor(room.id)).sortedBy { it.time }.map { m ->
                     if (m.path != null) try { m.copy(mediaUrl = api.signed(m.path)) } catch (_:Exception) { m } else m
                 }
                 realtime?.close()
@@ -308,6 +337,7 @@ private fun MoonNativeApp() {
         scope.launch {
             busy = true
             try {
+                try { api.syncPending() } catch (_:Exception) { }
                 rooms = api.rooms()
                 val selected = current?.let { old -> rooms.firstOrNull { it.id == old.id } }
                     ?: rooms.firstOrNull()
@@ -535,7 +565,7 @@ private fun MoonNativeApp() {
                             verticalArrangement = Arrangement.spacedBy(9.dp)
                         ) {
                             items(messages, key = { it.id }) { message ->
-                                MessageBubble(message, onOpen = {
+                                MessageBubble(message, mediaLoader, onOpen = {
                                     if (message.path != null) {
                                         scope.launch {
                                             try {
@@ -579,7 +609,12 @@ private fun MoonNativeApp() {
                                             messages = messages + sent
                                             input = ""
                                         } catch (e: Exception) {
-                                            errorText = e.message ?: "ارسال ناموفق بود"
+                                            try {
+                                                val queued = api.queueText(room,value)
+                                                messages = messages + queued
+                                                input = ""
+                                                infoText = "پیام ذخیره شد و با اتصال اینترنت ارسال می‌شود."
+                                            } catch (_:Exception) { errorText = e.message ?: "ارسال ناموفق بود" }
                                         }
                                     }
                                 }
@@ -742,7 +777,7 @@ private fun Field(
 }
 
 @Composable
-private fun MessageBubble(m: Msg, onOpen: () -> Unit) {
+private fun MessageBubble(m: Msg, loader: ImageLoader, onOpen: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (m.mine) Arrangement.Start else Arrangement.End
@@ -762,6 +797,8 @@ private fun MessageBubble(m: Msg, onOpen: () -> Unit) {
                         coil.compose.AsyncImage(
                             model = m.mediaUrl,
                             contentDescription = m.name ?: "تصویر",
+                            imageLoader = loader,
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier.widthIn(max=260.dp).heightIn(max=260.dp).clip(RoundedCornerShape(12.dp))
                         )
                     } else Text("🖼️ تصویر پیوست‌شده", color = White)
@@ -781,8 +818,8 @@ private fun MessageBubble(m: Msg, onOpen: () -> Unit) {
                 }
             }
             Text(
-                m.time.take(16).replace("T", " "),
-                color = Color(0xFFD2D0F5),
+                if (m.pending) "در صف ارسال" else m.time.take(16).replace("T", " "),
+                color = if (m.pending) Cyan else Color(0xFFD2D0F5),
                 fontSize = 9.sp,
                 modifier = Modifier.align(Alignment.End)
             )
