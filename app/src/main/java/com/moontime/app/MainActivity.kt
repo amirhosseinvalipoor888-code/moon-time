@@ -194,104 +194,475 @@ private class Realtime(private val roomId:String,private val token:String,privat
     fun close(){heartbeat?.cancel();heartbeat=null;socket?.close(1000,"switch room");socket=null;client.dispatcher.executorService.shutdown()}
 }
 
-@Composable private fun MoonNativeApp() {
-    val context=LocalContext.current
-    val api= remember{MoonApi(context)}
-    val scope= rememberCoroutineScope()
-    var logged by remember{mutableStateOf(api.token!=null && api.userId!=null)}
-    var email by remember{mutableStateOf(api.email.orEmpty())}
-    var password by remember{mutableStateOf("")}
-    var display by remember{mutableStateOf("")}
-    var invite by remember{mutableStateOf("")}
-    var otp by remember{mutableStateOf("")}
-    var registerMode by remember{mutableStateOf(false)}
-    var verifyMode by remember{mutableStateOf(false)}
-    var busy by remember{mutableStateOf(false)}
-    var error by remember{mutableStateOf("")}
-    var info by remember{mutableStateOf("")}
-    var rooms by remember{mutableStateOf(emptyList<Room>())}
-    var current by remember{mutableStateOf<Room?>(null)}
-    var messages by remember{mutableStateOf(emptyList<Msg>())}
-    var input by remember{mutableStateOf("")}
-    var refresh by remember{mutableIntStateOf(0)}
-    var dialog by remember{mutableStateOf("")}
-    var dialogValue by remember{mutableStateOf("")}
-    var realtime by remember{mutableStateOf<Realtime?>(null)}
-    var online by remember{mutableStateOf(false)}
-    val picker= rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri-> if(uri!=null&&current!=null)scope.launch {busy=true;try{val uploaded=api.upload(current!!,uri,context);val kind=when(uploaded.third.substringBefore('/')){"image"->"image";"video"->"video";"audio"->"audio";else->"file"};val m=api.send(current!!,"",kind,uploaded.first,uploaded.second,uploaded.third);messages=messages+m;info="فایل ارسال شد."}catch(e:Exception){error=e.message?: "آپلود ناموفق"}finally{busy=false}}}
-    fun loadRooms(){scope.launch{busy=true;try{rooms=api.rooms();if(current==null&&rooms.isNotEmpty())current=rooms.first();current?.let{messages=api.messages(it);realtime?.close();val t=api.token;if(t!=null){realtime=Realtime(it.id,t){rec->scope.launch{val uid=api.userId;val id=rec.optString("id");if(messages.none{m->m.id==id})messages=messages+Msg(id,rec.optString("body"),rec.optString("sender_id")==uid,rec.optString("created_at"),rec.optString("message_kind","text"),rec.optString("attachment_path").takeIf{s->s.isNotBlank()},rec.optString("attachment_name").takeIf{s->s.isNotBlank()})}};realtime?.connect();online=true}}}catch(e:Exception){error=e.message?: "خطا در بارگذاری"}finally{busy=false}}}
-    LaunchedEffect(Unit){if(logged)try{api.profile();loadRooms()}catch(e:Exception){error=e.message?: "ورود دوباره لازم است";logged=false}}
-    MaterialTheme(colorScheme=darkColorScheme(primary=Violet,secondary=Cyan,background=Night,surface=Panel,onPrimary=White,onBackground=White,onSurface=White)) {
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF171536),Night,Night)))) {
-            if(!logged) {
-                Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
-                    Text("☾",fontSize=60.sp,color=Violet);Text("MOON TIME",fontSize=27.sp,color=White,fontWeight=FontWeight.ExtraBold,letterSpacing=2.sp);Text("ارتباطی فراتر از مرزها",color=Muted,fontSize=12.sp)
-                    Spacer(Modifier.height(28.dp))
-                    if(verifyMode){Text("تأیید ایمیل",color=White,fontSize=20.sp,fontWeight=FontWeight.Bold);Field(otp,{otp=it},"کد تأیید ایمیل")}
-                    else {
-                        if(registerMode){Field(display,{display=it},"نام نمایشی");Field(invite,{invite=it},"کد معرف")}
-                        Field(email,{email=it},"ایمیل");Field(password,{password=it},"رمز عبور",true)
+@Composable
+private fun MoonNativeApp() {
+    val context = LocalContext.current
+    val api = remember { MoonApi(context) }
+    val scope = rememberCoroutineScope()
+    var logged by remember { mutableStateOf(api.token != null && api.userId != null) }
+    var email by remember { mutableStateOf(api.email.orEmpty()) }
+    var password by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var invite by remember { mutableStateOf("") }
+    var otp by remember { mutableStateOf("") }
+    var registerMode by remember { mutableStateOf(false) }
+    var verifyMode by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf("") }
+    var infoText by remember { mutableStateOf("") }
+    var rooms by remember { mutableStateOf(emptyList<Room>()) }
+    var current by remember { mutableStateOf<Room?>(null) }
+    var messages by remember { mutableStateOf(emptyList<Msg>()) }
+    var input by remember { mutableStateOf("") }
+    var dialog by remember { mutableStateOf("") }
+    var dialogValue by remember { mutableStateOf("") }
+    var realtime by remember { mutableStateOf<Realtime?>(null) }
+    var online by remember { mutableStateOf(false) }
+
+    fun connectRoom(room: Room) {
+        scope.launch {
+            try {
+                messages = api.messages(room)
+                realtime?.close()
+                val access = api.token
+                if (access != null) {
+                    val connection = Realtime(room.id, access) { record ->
+                        scope.launch {
+                            val messageId = record.optString("id")
+                            if (messages.none { it.id == messageId }) {
+                                messages = messages + Msg(
+                                    messageId,
+                                    record.optString("body"),
+                                    record.optString("sender_id") == api.userId,
+                                    record.optString("created_at"),
+                                    record.optString("message_kind", "text"),
+                                    record.optString("attachment_path").takeIf { it.isNotBlank() },
+                                    record.optString("attachment_name").takeIf { it.isNotBlank() }
+                                )
+                            }
+                        }
                     }
-                    if(error.isNotBlank())Text(error,color=Color(0xFFFF9BAF),fontSize=12.sp,modifier=Modifier.padding(8.dp))
-                    if(info.isNotBlank())Text(info,color=Cyan,fontSize=12.sp)
-                    Button(onClick={scope.launch{busy=true;error="";try{if(verifyMode){api.verify(email,otp);logged=true;api.profile();loadRooms()}else if(registerMode){val result=api.register(display,email,password,invite);if(result=="VERIFY"){verifyMode=true;info="کد تأیید به ایمیلت ارسال شد."}else{logged=true;api.profile();loadRooms()}}else{api.login(email,password);logged=true;api.profile();loadRooms()}}catch(e:Exception){error=e.message?: "عملیات ناموفق"}finally{busy=false}}},enabled=!busy,modifier=Modifier.fillMaxWidth().padding(top=12.dp)){Text(if(busy)"لطفاً صبر کن…" else if(verifyMode)"تأیید و ورود" else if(registerMode)"ساخت حساب" else "ورود")}
-                    TextButton(onClick={registerMode=!registerMode;verifyMode=false;error="";info=""}){Text(if(registerMode)"حساب داری؟ ورود" else "حساب نداری؟ ثبت‌نام")}
+                    realtime = connection
+                    connection.connect()
+                    online = true
                 }
-            } else if(current==null) {
-                Column(Modifier.fillMaxSize().statusBarsPadding().padding(20.dp)) {
-                    HeaderNative(onLogout={api.logout();logged=false},online=online)
-                    Text("گفتگویی نداری. از + برای شروع استفاده کن.",color=Muted,modifier=Modifier.padding(20.dp))
-                    Row { Button(onClick={dialog="group"}){Text("گروه جدید")};Spacer(Modifier.width(8.dp));Button(onClick={dialog="channel"}){Text("کانال جدید")} }
-                    Button(onClick={dialog="direct"},modifier=Modifier.padding(top=8.dp)){Text("گفتگوی خصوصی")}
+            } catch (e: Exception) {
+                errorText = e.message ?: "اتصال به گفتگو ناموفق بود"
+                online = false
+            }
+        }
+    }
+
+    fun refreshRooms() {
+        scope.launch {
+            busy = true
+            try {
+                rooms = api.rooms()
+                val selected = current?.let { old -> rooms.firstOrNull { it.id == old.id } }
+                    ?: rooms.firstOrNull()
+                current = selected
+                if (selected != null) connectRoom(selected)
+                else {
+                    messages = emptyList()
+                    realtime?.close()
+                    realtime = null
+                    online = false
+                }
+            } catch (e: Exception) {
+                errorText = e.message ?: "بارگذاری گفتگوها ناموفق بود"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (logged) {
+            try {
+                api.profile()
+                refreshRooms()
+            } catch (e: Exception) {
+                errorText = e.message ?: "ورود دوباره لازم است"
+                api.logout()
+                logged = false
+            }
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && current != null) {
+            scope.launch {
+                busy = true
+                try {
+                    val uploaded = api.upload(current!!, uri, context)
+                    val kind = when (uploaded.third.substringBefore('/')) {
+                        "image" -> "image"
+                        "video" -> "video"
+                        "audio" -> "audio"
+                        else -> "file"
+                    }
+                    val sent = api.send(current!!, "", kind, uploaded.first, uploaded.second, uploaded.third)
+                    messages = messages + sent
+                    infoText = "رسانه ارسال شد."
+                } catch (e: Exception) {
+                    errorText = e.message ?: "ارسال رسانه ناموفق بود"
+                } finally {
+                    busy = false
+                }
+            }
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = Violet, secondary = Cyan, background = Night,
+            surface = Panel, onPrimary = White, onBackground = White, onSurface = White
+        )
+    ) {
+        Box(
+            Modifier.fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFF171536), Night, Night)))
+        ) {
+            if (!logged) {
+                Column(
+                    Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("☾", fontSize = 60.sp, color = Violet)
+                    Text("MOON TIME", fontSize = 27.sp, color = White, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+                    Text("ارتباطی فراتر از مرزها", color = Muted, fontSize = 12.sp)
+                    Spacer(Modifier.height(28.dp))
+
+                    if (verifyMode) {
+                        Text("تأیید ایمیل", color = White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Field(otp, { otp = it }, "کد تأیید ایمیل")
+                    } else {
+                        if (registerMode) {
+                            Field(displayName, { displayName = it }, "نام نمایشی")
+                            Field(invite, { invite = it }, "کد معرف")
+                        }
+                        Field(email, { email = it }, "ایمیل")
+                        Field(password, { password = it }, "رمز عبور", true)
+                    }
+
+                    if (errorText.isNotBlank()) Text(errorText, color = Color(0xFFFF9BAF), fontSize = 12.sp)
+                    if (infoText.isNotBlank()) Text(infoText, color = Cyan, fontSize = 12.sp)
+
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                busy = true
+                                errorText = ""
+                                try {
+                                    when {
+                                        verifyMode -> {
+                                            api.verify(email, otp)
+                                            logged = true
+                                            api.profile()
+                                            refreshRooms()
+                                        }
+                                        registerMode -> {
+                                            val result = api.register(displayName, email, password, invite)
+                                            if (result == "VERIFY") {
+                                                verifyMode = true
+                                                infoText = "کد تأیید به ایمیلت ارسال شد."
+                                            } else {
+                                                logged = true
+                                                api.profile()
+                                                refreshRooms()
+                                            }
+                                        }
+                                        else -> {
+                                            api.login(email, password)
+                                            logged = true
+                                            api.profile()
+                                            refreshRooms()
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "عملیات ناموفق بود"
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    ) {
+                        Text(
+                            when {
+                                busy -> "لطفاً صبر کن…"
+                                verifyMode -> "تأیید و ورود"
+                                registerMode -> "ساخت حساب"
+                                else -> "ورود"
+                            }
+                        )
+                    }
+                    TextButton(onClick = {
+                        registerMode = !registerMode
+                        verifyMode = false
+                        errorText = ""
+                        infoText = ""
+                    }) {
+                        Text(if (registerMode) "حساب داری؟ ورود" else "حساب نداری؟ ثبت‌نام")
+                    }
                 }
             } else {
                 Column(Modifier.fillMaxSize().statusBarsPadding()) {
-                    Row(Modifier.fillMaxWidth().background(Color(0xFF11182B)).padding(10.dp),verticalAlignment=Alignment.CenterVertically) {
-                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Panel2),contentAlignment=Alignment.Center){Text(if(current!!.kind=="channel")"▣" else if(current!!.kind=="direct")"◉" else "👥",fontSize=21.sp)}
-                        Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(current!!.title,color=White,fontWeight=FontWeight.Bold);Text(if(online)"● زنده" else "در حال اتصال",color=if(online)Cyan else Muted,fontSize=10.sp)}
-                        IconButton(onClick={dialog="new"}){Icon(Icons.Default.Add,null,tint=White)}
-                        IconButton(onClick={loadRooms}){Icon(Icons.Default.Refresh,null,tint=White)}
-                        IconButton(onClick={api.logout();logged=false;realtime?.close()}){Icon(Icons.Default.Logout,null,tint=White)}
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("☾", fontSize = 34.sp, color = Violet)
+                        Spacer(Modifier.width(9.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("MOON TIME", color = White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                            Text(if (online) "متصل به گفتگو" else "آماده اتصال", color = Muted, fontSize = 10.sp)
+                        }
+                        IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.PersonAdd, null, tint = White) }
+                        IconButton(onClick = { dialog = "group" }) { Icon(Icons.Default.GroupAdd, null, tint = White) }
+                        IconButton(onClick = {
+                            api.logout()
+                            realtime?.close()
+                            logged = false
+                        }) { Icon(Icons.Default.Logout, null, tint = White) }
                     }
-                    Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                        rooms.forEach { room->FilterChip(selected=current?.id==room.id,onClick={scope.launch{current=room;messages=api.messages(room);realtime?.close();api.token?.let{t->realtime=Realtime(room.id,t){rec->scope.launch{val id=rec.optString("id");if(messages.none{it.id==id})messages=messages+Msg(id,rec.optString("body"),rec.optString("sender_id")==api.userId,rec.optString("created_at"))}};realtime?.connect();online=true}},label={Text(room.title,maxLines=1,overflow=TextOverflow.Ellipsis)})}
+
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilterChip(
+                            selected = current == null,
+                            onClick = {
+                                current = null
+                                messages = emptyList()
+                                realtime?.close()
+                                online = false
+                            },
+                            label = { Text("همه") }
+                        )
+                        rooms.forEach { room ->
+                            FilterChip(
+                                selected = current?.id == room.id,
+                                onClick = {
+                                    current = room
+                                    connectRoom(room)
+                                },
+                                label = { Text(room.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            )
+                        }
+                        IconButton(onClick = { refreshRooms() }) {
+                            Icon(Icons.Default.Refresh, null, tint = White)
+                        }
                     }
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth(),contentPadding=PaddingValues(14.dp),verticalArrangement=Arrangement.spacedBy(9.dp)) {
-                        items(messages,key={it.id}){m->MessageBubble(m,onOpen={if(m.path!=null)scope.launch{try{val url=api.signed(m.path);info=url}catch(e:Exception){error=e.message?: "خطا"}}})}
+
+                    if (current == null) {
+                        Column(
+                            Modifier.weight(1f).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("🌙", fontSize = 52.sp)
+                            Text("هنوز گفتگویی نداری", color = White, fontWeight = FontWeight.Bold)
+                            Text("از دکمه‌های بالا برای شروع گفتگو استفاده کن.", color = Muted)
+                            Button(onClick = { dialog = "channel" }, modifier = Modifier.padding(top = 12.dp)) {
+                                Text("ساخت کانال")
+                            }
+                        }
+                    } else {
+                        Text(current!!.title, color = White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        LazyColumn(
+                            Modifier.weight(1f).fillMaxWidth(),
+                            contentPadding = PaddingValues(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(9.dp)
+                        ) {
+                            items(messages, key = { it.id }) { message ->
+                                MessageBubble(message, onOpen = {
+                                    if (message.path != null) {
+                                        scope.launch {
+                                            try {
+                                                infoText = api.signed(message.path)
+                                            } catch (e: Exception) {
+                                                errorText = e.message ?: "باز کردن رسانه ناموفق بود"
+                                            }
+                                        }
+                                    }
+                                })
+                            }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().background(Color(0xFF10172A))
+                                .navigationBarsPadding().padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { picker.launch("*/*") }) {
+                                Icon(Icons.Default.AttachFile, null, tint = Muted)
+                            }
+                            BasicTextField(
+                                input,
+                                { input = it },
+                                Modifier.weight(1f).clip(RoundedCornerShape(15.dp))
+                                    .background(Panel).padding(13.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = White, fontSize = 14.sp),
+                                decorationBox = { inner ->
+                                    if (input.isEmpty()) Text("پیامت را بنویس…", color = Muted)
+                                    inner()
+                                }
+                            )
+                            IconButton(onClick = { dialog = "emoji" }) { Text("✨", fontSize = 23.sp) }
+                            IconButton(onClick = {
+                                val room = current
+                                val value = input.trim()
+                                if (room != null && value.isNotEmpty()) {
+                                    scope.launch {
+                                        try {
+                                            val sent = api.send(room, value)
+                                            messages = messages + sent
+                                            input = ""
+                                        } catch (e: Exception) {
+                                            errorText = e.message ?: "ارسال ناموفق بود"
+                                        }
+                                    }
+                                }
+                            }) {
+                                Icon(Icons.Default.Send, null, tint = Violet)
+                            }
+                        }
                     }
-                    if(info.isNotBlank())Text(info,color=Cyan,fontSize=10.sp,modifier=Modifier.padding(horizontal=12.dp))
-                    if(error.isNotBlank())Text(error,color=Color(0xFFFF9BAF),fontSize=10.sp,modifier=Modifier.padding(horizontal=12.dp))
-                    Row(Modifier.fillMaxWidth().background(Color(0xFF10172A)).navigationBarsPadding().padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                        IconButton(onClick={picker.launch("*/*")}){Icon(Icons.Default.AttachFile,null,tint=Muted)}
-                        BasicTextField(input,{input=it},Modifier.weight(1f).clip(RoundedCornerShape(15.dp)).background(Panel).padding(13.dp),textStyle=androidx.compose.ui.text.TextStyle(color=White,fontSize=14.sp),decorationBox={inner->if(input.isEmpty())Text("پیامت را بنویس…",color=Muted);inner()})
-                        IconButton(onClick={dialog="emoji"}){Text("✨",fontSize=23.sp)}
-                        IconButton(onClick={scope.launch{val value=input.trim();if(value.isNotEmpty())try{val m=api.send(current!!,value);messages=messages+m;input=""}catch(e:Exception){error=e.message?: "ارسال ناموفق"}}}){Icon(Icons.Default.Send,null,tint=Violet)}
-                    }
+
+                    if (infoText.isNotBlank()) Text(infoText, color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(8.dp))
+                    if (errorText.isNotBlank()) Text(errorText, color = Color(0xFFFF9BAF), fontSize = 10.sp, modifier = Modifier.padding(8.dp))
                 }
             }
-            if(dialog.isNotBlank()) AlertDialog(onDismissRequest={dialog=""},containerColor=Panel,title={Text(when(dialog){"group"->"ساخت گروه";"channel"->"ساخت کانال";"direct"->"گفتگوی خصوصی";"new"->"افزودن عضو";"emoji"->"ایموجی‌ها";else->"Moon Time",color=White)},text={
-                if(dialog=="emoji")Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂").forEach{Text(it,fontSize=25.sp,modifier=Modifier.clickable{input+=it;dialog=""})}}
-                else Field(dialogValue,{dialogValue=it},if(dialog=="direct"||dialog=="new")"ایمیل کاربر" else "نام")
-            },confirmButton={TextButton(onClick={scope.launch{try{busy=true;when(dialog){"group","channel"->{val r=api.createRoom(dialogValue,dialog);rooms=api.rooms();current=r;messages=emptyList();loadRooms()} "direct"->{val r=api.direct(dialogValue);rooms=api.rooms();current=r;messages=api.messages(r)} "new"->{api.addMember(current!!,dialogValue);info="عضو اضافه شد."}};dialog="";dialogValue=""}catch(e:Exception){error=e.message?: "عملیات ناموفق"}finally{busy=false}}}){Text("تأیید")}},dismissButton={TextButton(onClick={dialog=""}){Text("انصراف")}})
+
+            if (dialog.isNotBlank()) {
+                val dialogTitle = when (dialog) {
+                    "group" -> "ساخت گروه"
+                    "channel" -> "ساخت کانال"
+                    "direct" -> "گفتگوی خصوصی"
+                    "new" -> "افزودن عضو"
+                    "emoji" -> "ایموجی‌ها"
+                    else -> "Moon Time"
+                }
+                AlertDialog(
+                    onDismissRequest = { dialog = "" },
+                    containerColor = Panel,
+                    title = { Text(dialogTitle, color = White) },
+                    text = {
+                        if (dialog == "emoji") {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("😀", "🥳", "😍", "🔥", "✨", "🚀", "🌙", "💜", "🎉", "😂").forEach { emoji ->
+                                    Text(emoji, fontSize = 25.sp, modifier = Modifier.clickable {
+                                        input += emoji
+                                        dialog = ""
+                                    })
+                                }
+                            }
+                        } else {
+                            Field(
+                                dialogValue,
+                                { dialogValue = it },
+                                if (dialog == "direct" || dialog == "new") "ایمیل کاربر" else "نام"
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            scope.launch {
+                                busy = true
+                                errorText = ""
+                                try {
+                                    when (dialog) {
+                                        "group", "channel" -> {
+                                            val created = api.createRoom(dialogValue, dialog)
+                                            rooms = api.rooms()
+                                            current = created
+                                            connectRoom(created)
+                                        }
+                                        "direct" -> {
+                                            val created = api.direct(dialogValue)
+                                            rooms = api.rooms()
+                                            current = created
+                                            connectRoom(created)
+                                        }
+                                        "new" -> {
+                                            val room = current
+                                            if (room != null) api.addMember(room, dialogValue)
+                                            infoText = "عضو اضافه شد."
+                                        }
+                                    }
+                                    dialog = ""
+                                    dialogValue = ""
+                                } catch (e: Exception) {
+                                    errorText = e.message ?: "عملیات ناموفق بود"
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        }) { Text("تأیید") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { dialog = "" }) { Text("انصراف") }
+                    }
+                )
+            }
         }
     }
 }
 
-@Composable private fun Field(value:String,onChange:(String)->Unit,hint:String,secret:Boolean=false) {
-    BasicTextField(value,onChange,Modifier.fillMaxWidth().padding(vertical=5.dp).clip(RoundedCornerShape(14.dp)).background(Panel).padding(15.dp),singleLine=true,textStyle=androidx.compose.ui.text.TextStyle(color=White,fontSize=14.sp),visualTransformation=if(secret)androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,decorationBox={inner->if(value.isEmpty())Text(hint,color=Muted,fontSize=13.sp);inner()})
+@Composable
+private fun Field(
+    value: String,
+    onChange: (String) -> Unit,
+    hint: String,
+    secret: Boolean = false
+) {
+    BasicTextField(
+        value,
+        onChange,
+        Modifier.fillMaxWidth().padding(vertical = 5.dp)
+            .clip(RoundedCornerShape(14.dp)).background(Panel).padding(15.dp),
+        singleLine = true,
+        textStyle = androidx.compose.ui.text.TextStyle(color = White, fontSize = 14.sp),
+        visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation()
+            else androidx.compose.ui.text.input.VisualTransformation.None,
+        decorationBox = { inner ->
+            if (value.isEmpty()) Text(hint, color = Muted, fontSize = 13.sp)
+            inner()
+        }
+    )
 }
-@Composable private fun HeaderNative(onLogout:()->Unit,online:Boolean) {
-    Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically){Text("☾",fontSize=35.sp,color=Violet);Spacer(Modifier.width(9.dp));Column{Text("MOON TIME",color=White,fontWeight=FontWeight.ExtraBold,fontSize=18.sp);Text(if(online)"متصل" else "آماده اتصال",color=Muted,fontSize=10.sp)};Spacer(Modifier.weight(1f));IconButton(onClick=onLogout){Icon(Icons.Default.Logout,null,tint=White)}}
-}
-@Composable private fun MessageBubble(m:Msg,onOpen:()->Unit) {
-    Row(Modifier.fillMaxWidth(),horizontalArrangement=if(m.mine)Arrangement.Start else Arrangement.End) {
-        Column(Modifier.widthIn(max=300.dp).clip(RoundedCornerShape(18.dp)).background(if(m.mine)Brush.horizontalGradient(listOf(Color(0xFF6255C5),Color(0xFF5146A5))) else Brush.horizontalGradient(listOf(Panel2,Panel2))).clickable{if(m.path!=null)onOpen()}.padding(12.dp)) {
-            if(m.kind=="image")Text("🖼️ تصویر پیوست‌شده",color=White)
-            else if(m.kind=="video")Text("🎬 ویدیو پیوست‌شده",color=White)
-            else if(m.kind=="audio")Text("🎵 فایل صوتی",color=White)
-            else if(m.kind=="file")Text("📎 ${m.name?: "فایل پیوست"}",color=White)
-            Text(m.text,color=White,fontSize=14.sp)
-            Text(m.time.take(16).replace("T"," "),color=Color(0xFFD2D0F5),fontSize=9.sp,modifier=Modifier.align(Alignment.End))
+
+@Composable
+private fun MessageBubble(m: Msg, onOpen: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (m.mine) Arrangement.Start else Arrangement.End
+    ) {
+        Column(
+            Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp))
+                .background(
+                    if (m.mine) Brush.horizontalGradient(listOf(Color(0xFF6255C5), Color(0xFF5146A5)))
+                    else Brush.horizontalGradient(listOf(Panel2, Panel2))
+                )
+                .clickable { if (m.path != null) onOpen() }
+                .padding(12.dp)
+        ) {
+            when (m.kind) {
+                "image" -> Text("🖼️ تصویر پیوست‌شده", color = White)
+                "video" -> Text("🎬 ویدیو پیوست‌شده", color = White)
+                "audio" -> Text("🎵 فایل صوتی", color = White)
+                "file" -> Text("📎 ${m.name ?: "فایل پیوست"}", color = White)
+            }
+            if (m.text.isNotBlank()) Text(m.text, color = White, fontSize = 14.sp)
+            Text(
+                m.time.take(16).replace("T", " "),
+                color = Color(0xFFD2D0F5),
+                fontSize = 9.sp,
+                modifier = Modifier.align(Alignment.End)
+            )
         }
     }
 }
