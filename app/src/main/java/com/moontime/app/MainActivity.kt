@@ -1,6 +1,7 @@
 package com.moontime.app
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -70,8 +71,17 @@ private class MoonApi(context:Context) {
     var refresh:String? = prefs.getString("refresh",null); private set
     var userId:String? = prefs.getString("uid",null); private set
     var email:String? = prefs.getString("email",null); private set
-    private fun save(o:JSONObject) { token=o.optString("access_token").takeIf{it.isNotBlank()}; refresh=o.optString("refresh_token").takeIf{it.isNotBlank()}; val u=o.optJSONObject("user"); userId=u?.optString("id")?.takeIf{it.isNotBlank()}; email=u?.optString("email")?.takeIf{it.isNotBlank()}; prefs.edit().putString("access",token).putString("refresh",refresh).putString("uid",userId).putString("email",email).apply() }
-    fun logout(){token=null;refresh=null;userId=null;email=null;prefs.edit().clear().apply()}
+    var displayName:String? = prefs.getString("display_name",null); private set
+    private fun save(o:JSONObject) {
+        token=o.optString("access_token").takeIf{it.isNotBlank()}
+        refresh=o.optString("refresh_token").takeIf{it.isNotBlank()}
+        val u=o.optJSONObject("user")
+        userId=u?.optString("id")?.takeIf{it.isNotBlank()}
+        email=u?.optString("email")?.takeIf{it.isNotBlank()}
+        displayName=u?.optJSONObject("user_metadata")?.optString("display_name")?.takeIf{it.isNotBlank()} ?: displayName
+        prefs.edit().putString("access",token).putString("refresh",refresh).putString("uid",userId).putString("email",email).putString("display_name",displayName).apply()
+    }
+    fun logout(){token=null;refresh=null;userId=null;email=null;displayName=null;prefs.edit().clear().apply()}
     private suspend fun request(path:String,method:String="GET",body:String?=null,auth:Boolean=true,contentType:String="application/json",extra:Map<String,String> = emptyMap()):String = withContext(Dispatchers.IO) {
         suspend fun send():Response {
             val b=Request.Builder().url(API_URL+path).header("apikey",API_KEY).header("Accept","application/json")
@@ -101,14 +111,16 @@ private class MoonApi(context:Context) {
     suspend fun register(name:String,emailIn:String,password:String,invite:String):String {
         val valid=request("/rest/v1/rpc/check_moon_invite","POST",JSONObject().put("p_code",invite.uppercase()).toString(),true)
         if(valid.trim()!="true")throw IllegalStateException("کد معرف معتبر نیست.")
-        val result=request("/auth/v1/signup","POST",JSONObject().put("email",emailIn).put("password",password).put("data",JSONObject().put("display_name",name)).put("email_redirect_to",API_URL+"/functions/v1/moon-time").toString(),false)
+        displayName=name
+        prefs.edit().putString("display_name",name).apply()
+        val result=request("/auth/v1/signup","POST",JSONObject().put("email",emailIn.trim()).put("password",password).put("data",JSONObject().put("display_name",name)).put("email_redirect_to",API_URL+"/functions/v1/moon-time").toString(),false)
         val o=JSONObject(result)
         if(o.has("access_token"))save(o)
         return if(token==null) "VERIFY" else "OK"
     }
     suspend fun verify(emailIn:String,code:String) { save(JSONObject(request("/auth/v1/verify","POST",JSONObject().put("type","signup").put("email",emailIn).put("token",code).toString(),false))) }
     suspend fun login(emailIn:String,password:String) { save(JSONObject(request("/auth/v1/token?grant_type=password","POST",JSONObject().put("email",emailIn).put("password",password).toString(),false))) }
-    suspend fun profile() { val id=userId?:return; val name=(email?: "کاربر").substringBefore("@"); request("/rest/v1/profiles?on_conflict=id","POST",JSONObject().put("id",id).put("email",email).put("display_name",name).toString(),true,"application/json",mapOf("Prefer" to "resolution=merge-duplicates,return=minimal")) }
+    suspend fun profile() { val id=userId?:return; val name=displayName?.takeIf{it.isNotBlank()} ?: (email?: "کاربر").substringBefore("@"); request("/rest/v1/profiles?on_conflict=id","POST",JSONObject().put("id",id).put("email",email).put("display_name",name).toString(),true,"application/json",mapOf("Prefer" to "resolution=merge-duplicates,return=minimal")) }
     suspend fun rooms():List<Room> {
         val uid=userId?:return emptyList()
         val ms=JSONArray(request("/rest/v1/conversation_members?user_id=eq.$uid&select=conversation_id"))
@@ -152,7 +164,9 @@ private class MoonApi(context:Context) {
     }
     suspend fun send(room:Room,text:String,kind:String="text",path:String?=null,name:String?=null,mime:String?=null,size:Long?=null):Msg {
         val uid=userId?:error("ابتدا وارد شو")
-        val o=JSONObject(request("/rest/v1/messages","POST",JSONObject().put("conversation_id",room.id).put("sender_id",uid).put("body",text.ifBlank{if(kind=="image")"تصویر" else "رسانه"}).put("message_kind",kind).put("attachment_path",path).put("attachment_name",name).put("attachment_mime",mime).put("attachment_size",size).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        val rows=JSONArray(request("/rest/v1/messages","POST",JSONObject().put("conversation_id",room.id).put("sender_id",uid).put("body",text.ifBlank{if(kind=="image")"تصویر" else "رسانه"}).put("message_kind",kind).put("attachment_path",path).put("attachment_name",name).put("attachment_mime",mime).put("attachment_size",size).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        if(rows.length()==0) error("سرور پیام را ذخیره نکرد.")
+        val o=rows.getJSONObject(0)
         return Msg(o.getString("id"),o.optString("body"),true,o.optString("created_at"),kind,path,name)
     }
     suspend fun upload(room:Room,uri:Uri,context:Context):Triple<String,String,String> = withContext(Dispatchers.IO) {
@@ -422,6 +436,10 @@ private fun MoonNativeApp() {
                         }
                         IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.PersonAdd, null, tint = White) }
                         IconButton(onClick = { dialog = "group" }) { Icon(Icons.Default.GroupAdd, null, tint = White) }
+                        IconButton(onClick = { dialog = "channel" }) { Icon(Icons.Default.Campaign, null, tint = White) }
+                        if (current != null && current!!.kind != "direct") {
+                            IconButton(onClick = { dialog = "new" }) { Icon(Icons.Default.PersonAddAlt, null, tint = White) }
+                        }
                         IconButton(onClick = {
                             api.logout()
                             realtime?.close()
@@ -483,7 +501,8 @@ private fun MoonNativeApp() {
                                     if (message.path != null) {
                                         scope.launch {
                                             try {
-                                                infoText = api.signed(message.path)
+                                                val mediaUrl = api.signed(message.path)
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(mediaUrl)))
                                             } catch (e: Exception) {
                                                 errorText = e.message ?: "باز کردن رسانه ناموفق بود"
                                             }
@@ -656,7 +675,13 @@ private fun MessageBubble(m: Msg, onOpen: () -> Unit) {
                 "audio" -> Text("🎵 فایل صوتی", color = White)
                 "file" -> Text("📎 ${m.name ?: "فایل پیوست"}", color = White)
             }
-            if (m.text.isNotBlank()) Text(m.text, color = White, fontSize = 14.sp)
+            if (m.text.isNotBlank()) {
+                if (m.text.trim() in setOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂")) {
+                    AnimatedEmoji(m.text.trim())
+                } else {
+                    Text(m.text, color = White, fontSize = 14.sp)
+                }
+            }
             Text(
                 m.time.take(16).replace("T", " "),
                 color = Color(0xFFD2D0F5),
@@ -665,4 +690,19 @@ private fun MessageBubble(m: Msg, onOpen: () -> Unit) {
             )
         }
     }
+}
+
+@Composable
+private fun AnimatedEmoji(value: String) {
+    val transition = rememberInfiniteTransition(label = "emoji-pulse")
+    val scale by transition.animateFloat(
+        initialValue = 0.88f,
+        targetValue = 1.16f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(650, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "emoji-scale"
+    )
+    Text(value, modifier = Modifier.scale(scale), fontSize = 34.sp)
 }
