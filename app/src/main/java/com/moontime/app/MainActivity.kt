@@ -285,10 +285,19 @@ private fun MoonNativeApp() {
     var online by remember { mutableStateOf(false) }
     val mediaLoader = remember(context) { ImageLoader.Builder(context).components { if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory()) }.build() }
     var contactEmail by remember { mutableStateOf("") }
-    var contacts by remember { mutableStateOf(run {
+    var contacts by remember {
         val saved = context.getSharedPreferences("moon_contacts", Context.MODE_PRIVATE).getString("items", "[]") ?: "[]"
-        try { val a=JSONArray(saved); (0 until a.length()).map { val o=a.getJSONObject(it); MoonContact(o.getString("id"),o.getString("name"),o.getString("email")) } } catch (_:Exception) { emptyList() }
-    }) }
+        val loaded: List<MoonContact> = try {
+            val array = JSONArray(saved)
+            (0 until array.length()).map { index ->
+                val item = array.getJSONObject(index)
+                MoonContact(item.getString("id"), item.getString("name"), item.getString("email"))
+            }
+        } catch (_: Exception) {
+            emptyList<MoonContact>()
+        }
+        mutableStateOf<List<MoonContact>>(loaded)
+    }
 
     fun connectRoom(room: Room) {
         scope.launch {
