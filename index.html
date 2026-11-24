@@ -139,6 +139,8 @@ async function openSettings(){
  $('languageSelect').value=localStorage.getItem('moon-language')||'fa';
  $('notifyToggle').checked=('Notification'in window)&&Notification.permission==='granted';
  await loadSettingsPrefs();
+ if(settingsPrefs.theme){$('themeToggle').checked=settingsPrefs.theme==='light';localStorage.setItem('moon-theme',settingsPrefs.theme);document.body.classList.toggle('light-mode',$('themeToggle').checked);}
+ if(settingsPrefs.language){$('languageSelect').value=settingsPrefs.language;localStorage.setItem('moon-language',settingsPrefs.language);}
  const avatar=user?.user_metadata?.avatar_url;
  if(avatar){$('settingsAvatar').style.backgroundImage='url("'+avatar+'")';$('settingsAvatar').textContent='';}
  settingsScreen.classList.add('open');
