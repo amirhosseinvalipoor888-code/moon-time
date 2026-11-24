@@ -92,6 +92,7 @@ async function showApp(){
   else setStatus('متصل به سرور Moon Time');
   await loadConversations();
   await loadSettingsPrefs();
+  initPresence();
   initRealtimeCalls();
   initMessageNotifications();
 }
@@ -217,8 +218,7 @@ $('settingsContent').addEventListener('click',async e=>{
   }else if(k==='privacy'){
    const choices=[
     ['show_online','نمایش وضعیت آنلاین'],
-    ['read_receipts','رسید خواندن پیام‌ها'],
-    ['profile_photo_public','نمایش عمومی عکس پروفایل']
+    ['read_receipts','ارسال رسید خواندن پیام‌ها']
    ];
    for(const [key,label] of choices){const current=settingsPrefs[key]!==false;const answer=prompt(label+'\\nوضعیت فعلی: '+(current?'فعال':'غیرفعال')+'\\nبرای فعال‌سازی 1 و برای غیرفعال‌سازی 0 را وارد کن:',current?'1':'0');if(answer===null)return;if(answer!=='1'&&answer!=='0')return alert('فقط 1 یا 0 وارد کن.');settingsPrefs[key]=answer==='1';}
    await saveSettingsPrefs(settingsPrefs);
@@ -338,6 +338,19 @@ $('toggleMicBtn').onclick=()=>{const t=callStream?.getAudioTracks()[0];if(t){t.e
 $('toggleCamBtn').onclick=()=>{const t=callStream?.getVideoTracks()[0];if(!t)return alert('این تماس فقط صوتی است.');t.enabled=!t.enabled;$('toggleCamBtn').textContent=t.enabled?'📷 دوربین':'🚫 دوربین خاموش';};
 
 
+
+async function initPresence(){
+ if(!user||presenceChannel||settingsPrefs.show_online===false)return;
+ presenceChannel=sb.channel('moon-online',{config:{presence:{key:user.id}}});
+ presenceChannel.subscribe(async state=>{
+  if(state==='SUBSCRIBED'){const {error}=await presenceChannel.track({user_id:user.id,online_at:new Date().toISOString()});if(error)console.warn('Presence tracking',error.message);}
+ });
+}
+async function refreshPresence(){
+ if(presenceChannel){await sb.removeChannel(presenceChannel);presenceChannel=null;}
+ initPresence();
+}
+
 let messageNoticeChannel=null;
 async function initMessageNotifications(){
  if(!user||messageNoticeChannel)return;
@@ -455,7 +468,7 @@ $('resendBtn').onclick=async()=>{try{showError('');const email=$('emailInput').v
 $('newChat').onclick=createDirect;$('newGroup').onclick=()=>createRoom('group');$('newChannel').onclick=()=>createRoom('channel');
 $('addMemberBtn').onclick=addMember;
 $('profileBtn').onclick=async()=>{const {data,error}=await sb.from('profiles').select('display_name,email,role').eq('id',user.id).maybeSingle();if(error){setStatus(error.message);return;}alert('نام: '+(data?.display_name||'')+'\nایمیل: '+user.email+'\nنقش: '+(data?.role||'member'));};
-$('logoutBtn').onclick=async()=>{await sb.auth.signOut();if(subscription)await sb.removeChannel(subscription);if(window.__moonCallListener){await sb.removeChannel(window.__moonCallListener);window.__moonCallListener=null;}if(messageNoticeChannel){await sb.removeChannel(messageNoticeChannel);messageNoticeChannel=null;}if(readSignal){await sb.removeChannel(readSignal);readSignal=null;}await stopCall(false);user=null;currentId=null;$('appRoot').style.display='none';$('authGate').style.display='grid';};
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();if(subscription)await sb.removeChannel(subscription);if(window.__moonCallListener){await sb.removeChannel(window.__moonCallListener);window.__moonCallListener=null;}if(presenceChannel){await sb.removeChannel(presenceChannel);presenceChannel=null;}if(messageNoticeChannel){await sb.removeChannel(messageNoticeChannel);messageNoticeChannel=null;}if(readSignal){await sb.removeChannel(readSignal);readSignal=null;}await stopCall(false);user=null;currentId=null;$('appRoot').style.display='none';$('authGate').style.display='grid';};
 $('back').onclick=()=>{main.classList.remove('show');side.classList.remove('hidden');};
 $('search').addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase();document.querySelectorAll('#chatList .chat').forEach(x=>x.style.display=x.dataset.name.toLocaleLowerCase().includes(q)?'flex':'none');});
 sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){user=null;$('authGate').style.display='grid';$('appRoot').style.display='none';}});
