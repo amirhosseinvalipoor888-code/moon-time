@@ -120,8 +120,9 @@ private class MoonApi(context:Context) {
     }
     suspend fun createRoom(title:String,kind:String):Room {
         val uid=userId?:error("ابتدا وارد حساب شو")
-        val o=JSONObject(request("/rest/v1/conversations","POST",JSONObject().put("title",title).put("is_group",true).put("kind",kind).put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
-        val r=if(o is JSONObject)o else JSONArray(o.toString()).getJSONObject(0)
+        val created=JSONArray(request("/rest/v1/conversations","POST",JSONObject().put("title",title).put("is_group",true).put("kind",kind).put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        if(created.length()==0) error("ساخت گفتگو ناموفق بود")
+        val r=created.getJSONObject(0)
         val id=r.getString("id")
         request("/rest/v1/conversation_members","POST",JSONObject().put("conversation_id",id).put("user_id",uid).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
         return Room(id,title,kind)
@@ -131,7 +132,9 @@ private class MoonApi(context:Context) {
         val result=JSONArray(request("/rest/v1/rpc/lookup_profile_by_email","POST",JSONObject().put("p_email",emailTarget).toString()))
         if(result.length()==0)error("این ایمیل در مون‌تایم ثبت‌نام نکرده است.")
         val target=result.getJSONObject(0)
-        val room=JSONObject(request("/rest/v1/conversations","POST",JSONObject().put("title",target.optString("display_name","گفتگوی خصوصی")).put("is_group",false).put("kind","direct").put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        val created=JSONArray(request("/rest/v1/conversations","POST",JSONObject().put("title",target.optString("display_name","گفتگوی خصوصی")).put("is_group",false).put("kind","direct").put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        if(created.length()==0) error("ساخت گفتگوی خصوصی ناموفق بود")
+        val room=created.getJSONObject(0)
         val id=room.getString("id")
         val arr=JSONArray().put(JSONObject().put("conversation_id",id).put("user_id",uid)).put(JSONObject().put("conversation_id",id).put("user_id",target.getString("id")))
         request("/rest/v1/conversation_members","POST",arr.toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
@@ -173,6 +176,7 @@ private class MoonApi(context:Context) {
 private class Realtime(private val roomId:String,private val token:String,private val onMessage:(JSONObject)->Unit) {
     private val client=OkHttpClient.Builder().pingInterval(25,TimeUnit.SECONDS).build()
     private var socket:WebSocket?=null
+    private var heartbeat:java.util.Timer?=null
     fun connect() {
         val req=Request.Builder().url(API_URL.replace("https://","wss://")+"/realtime/v1/websocket?apikey=$API_KEY&vsn=1.0.0").build()
         socket=client.newWebSocket(req,object:WebSocketListener(){
@@ -180,13 +184,14 @@ private class Realtime(private val roomId:String,private val token:String,privat
                 val config=JSONObject().put("broadcast",JSONObject().put("ack",false).put("self",false)).put("presence",JSONObject().put("key","")).put("postgres_changes",JSONArray().put(JSONObject().put("event","INSERT").put("schema","public").put("table","messages").put("filter","conversation_id=eq.$roomId")))
                 val payload=JSONObject().put("config",config).put("access_token",token)
                 webSocket.send(JSONObject().put("topic","realtime:room:$roomId").put("event","phx_join").put("payload",payload).put("ref","1").put("join_ref","1").toString())
+                heartbeat=java.util.Timer("moon-realtime-heartbeat",true).also { timer -> timer.scheduleAtFixedRate(object:java.util.TimerTask(){override fun run(){webSocket.send(JSONObject().put("topic","phoenix").put("event","heartbeat").put("payload",JSONObject()).put("ref",System.nanoTime().toString()).toString())}},25000,25000) }
             }
             override fun onMessage(webSocket:WebSocket,text:String) {
                 try { val root=JSONObject(text);val payload=root.optJSONObject("payload")?:return;val data=payload.optJSONObject("data")?:return;val record=data.optJSONObject("record")?:return;if(record.optString("conversation_id")==roomId)onMessage(record) }catch(_:Exception){}
             }
         })
     }
-    fun close(){socket?.close(1000,"switch room");socket=null;client.dispatcher.executorService.shutdown()}
+    fun close(){heartbeat?.cancel();heartbeat=null;socket?.close(1000,"switch room");socket=null;client.dispatcher.executorService.shutdown()}
 }
 
 @Composable private fun MoonNativeApp() {
