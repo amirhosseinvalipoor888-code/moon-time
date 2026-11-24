@@ -11,8 +11,8 @@
 </style></head>
 <body>
 <div class="auth" id="authGate"><div class="auth-card"><div class="moon">☾</div><h1>Moon Time</h1><p>برای ساخت حساب آنلاین یا ورود، اطلاعاتت را وارد کن.</p><input id="inviteInput" placeholder="کد معرف (فقط ثبت‌نام)" autocomplete="off"><input id="regName" placeholder="نام نمایشی" maxlength="32"><input id="emailInput" type="email" placeholder="ایمیل"><input id="passwordInput" type="password" placeholder="رمز عبور (حداقل ۸ کاراکتر)"><button id="enterBtn">ثبت‌نام آنلاین</button><button id="loginBtn" style="background:#293252">ورود به حساب</button><p class="auth-error" id="authError"></p></div></div>
-<div class="app" id="appRoot"><aside class="side" id="side"><div class="brand"><div class="moon">☾</div><div><b>Moon Time</b><small>ارتباطی فراتر از مرزها</small></div></div><input class="search" id="search" placeholder="جست‌وجوی گفتگوها…"><div class="section">گفتگوها</div><div class="side-tools"><button class="icon" id="newChat">＋ گفتگو</button><button class="icon" id="newGroup">＋ گروه</button><button class="icon" id="newChannel">＋ کانال</button></div><div id="chatList"></div><div class="section">دسترسی سریع</div><div class="chat" data-name="ذخیره‌شده‌ها" data-avatar="▣"><div class="avatar">▣</div><div class="meta"><b>پیام‌های ذخیره‌شده</b><p>یادداشت‌ها و فایل‌های شخصی</p></div></div></aside>
-<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small id="chatStatus">آماده اتصال</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon" id="addMemberBtn" title="افزودن عضو">افزودن عضو</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button><button class="icon" id="logoutBtn" title="خروج">خروج</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">آفلاین محلی • برای پیام‌رسانی مستقیم، دو دستگاه را با «اتصال» جفت کن.</div></main></div>
+<div class="app" id="appRoot"><aside class="side" id="side"><div class="brand"><div class="moon">☾</div><div><b>Moon Time</b><small>ارتباطی فراتر از مرزها</small></div></div><input class="search" id="search" placeholder="جست‌وجوی گفتگوها…"><div class="section">گفتگوها</div><div class="side-tools"><button class="icon" id="newChat">＋ گفتگو</button><button class="icon" id="newGroup">＋ گروه</button><button class="icon" id="newChannel">＋ کانال</button></div><div id="chatList"></div></aside>
+<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small id="chatStatus">آماده اتصال</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon" id="addMemberBtn" title="افزودن عضو">افزودن عضو</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button><button class="icon" id="logoutBtn" title="خروج">خروج</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">در حال بررسی اتصال به سرور…</div></main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 'use strict';
@@ -32,6 +32,7 @@ async function showApp(){
   $('chatStatus').textContent='حساب آنلاین';
   const profile=await sb.from('profiles').upsert({id:user.id,display_name:user.user_metadata?.display_name||user.email?.split('@')[0]||'کاربر',email:user.email},{onConflict:'id'});
   if(profile.error)setStatus('ورود برقرار است؛ خطای پروفایل: '+profile.error.message);
+  else setStatus('متصل به سرور Moon Time');
   await loadConversations();
 }
 async function register(){
@@ -165,6 +166,8 @@ $('back').onclick=()=>{main.classList.remove('show');side.classList.remove('hidd
 $('search').addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase();document.querySelectorAll('#chatList .chat').forEach(x=>x.style.display=x.dataset.name.toLocaleLowerCase().includes(q)?'flex':'none');});
 sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){user=null;$('authGate').style.display='grid';$('appRoot').style.display='none';}});
 (async()=>{try{const {data,error}=await sb.auth.getSession();if(error)throw error;if(data.session){user=data.session.user;await showApp();}else{$('appRoot').style.display='none';}}catch(e){showError('اتصال به سرور برقرار نشد: '+e.message);}})();
+window.addEventListener('online',()=>{if(user)setStatus('اینترنت وصل شد؛ در حال همگام‌سازی…');});
+window.addEventListener('offline',()=>setStatus('اینترنت قطع است؛ ارسال پیام موقتاً ممکن نیست.'));
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 if(innerWidth>700)main.classList.add('show');
 </script></body></html>
