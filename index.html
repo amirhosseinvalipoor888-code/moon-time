@@ -36,7 +36,7 @@ body.light-mode .app{background:#f5f7fc}body.light-mode .top,body.light-mode .se
 .call-actions button{border:0;border-radius:14px;padding:12px 18px;color:#fff;background:#465a8b;font:inherit}
 .call-actions .hangup{background:#c83e55}.call-actions .accept{background:#269b75}
 .call-muted{font-size:12px;color:#aeb9d3;margin-top:10px}
-</style></head>
+body.english{direction:ltr}body.english .side{border-left:0;border-right:1px solid var(--line)}body.english .setting-row{text-align:left}body.english .setting-row .arrow{margin-left:auto;margin-right:0}body.english .settings-head{flex-direction:row}body.english .actions{margin-left:auto;margin-right:0}</style></head>
 <body>
 <div class="auth" id="authGate"><div class="auth-card"><div class="moon">☾</div><h1>Moon Time</h1><p>برای ساخت حساب آنلاین یا ورود، اطلاعاتت را وارد کن.</p><input id="inviteInput" placeholder="کد معرف (فقط ثبت‌نام)" autocomplete="off"><input id="regName" placeholder="نام نمایشی" maxlength="32"><input id="emailInput" type="email" placeholder="ایمیل"><input id="passwordInput" type="password" placeholder="رمز عبور (حداقل ۸ کاراکتر)"><button id="enterBtn">ثبت‌نام آنلاین</button><button id="loginBtn" style="background:#293252">ورود به حساب</button><button id="resendBtn" style="background:#293252">ارسال دوباره ایمیل تأیید</button><p class="auth-error" id="authError"></p></div></div>
 <div class="app" id="appRoot"><aside class="side" id="side"><div class="brand"><div class="moon">☾</div><div><b>Moon Time</b><small>ارتباطی فراتر از مرزها</small></div></div><input class="search" id="search" placeholder="جست‌وجوی گفتگوها…"><div class="section">گفتگوها</div><div class="side-tools"><button class="icon" id="newChat">＋ گفتگو</button><button class="icon" id="newGroup">＋ گروه</button><button class="icon" id="newChannel">＋ کانال</button></div><div id="chatList"></div></aside>
@@ -131,7 +131,7 @@ function openSettings(){menu.classList.remove('open');$('settingsEmail').textCon
 $('closeSettings').onclick=()=>settingsScreen.classList.remove('open');
 $('overflowMenu').addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(!b)return;const a=b.dataset.action;menu.classList.remove('open');if(a==='settings')openSettings();else if(a==='newgroup')createRoom('group');else if(a==='newchannel')createRoom('channel');else if(a==='search'){$('search').focus();}else if(a==='contacts'){alert('مخاطبین: برای شروع گفتگوی خصوصی از دکمه «گفتگو» استفاده کن و ایمیل کاربر را وارد کن.');}else if(a==='calls'){alert('تماس صوتی و تصویری هنوز در این نسخه پیاده‌سازی نشده است.');}else if(a==='saved'){alert('پیام‌های ذخیره‌شده هنوز به فضای ابری متصل نشده‌اند.');}});
 $('themeToggle').onchange=async e=>{document.body.classList.toggle('light-mode',e.target.checked);localStorage.setItem('moon-theme',e.target.checked?'light':'dark');if(user)try{await saveSettingsPrefs({theme:e.target.checked?'light':'dark'});}catch(err){setStatus('ذخیره پوسته در حساب انجام نشد: '+err.message);}};
-$('languageSelect').onchange=async e=>{localStorage.setItem('moon-language',e.target.value);if(user)try{await saveSettingsPrefs({language:e.target.value});}catch(err){setStatus('ذخیره زبان انجام نشد: '+err.message);}alert(e.target.value==='en'?'انتخاب زبان انگلیسی ذخیره شد؛ ترجمه کامل رابط هنوز در دست توسعه است.':'زبان فارسی انتخاب و ذخیره شد.');};
+$('languageSelect').onchange=async e=>{localStorage.setItem('moon-language',e.target.value);applyLanguage(e.target.value);if(user)try{await saveSettingsPrefs({language:e.target.value});}catch(err){setStatus('ذخیره زبان انجام نشد: '+err.message);}alert(e.target.value==='en'?'انتخاب زبان انگلیسی ذخیره شد؛ ترجمه کامل رابط هنوز در دست توسعه است.':'زبان فارسی انتخاب و ذخیره شد.');};
 $('notifyToggle').onchange=async e=>{if(e.target.checked&&'Notification'in window){const p=await Notification.requestPermission();e.target.checked=p==='granted';if(p!=='granted')alert('اجازه اعلان از تنظیمات مرورگر یا گوشی داده نشد.');if(user)try{await saveSettingsPrefs({notifications:p==='granted'});}catch(err){setStatus(err.message);}}else if(!('Notification'in window)){e.target.checked=false;alert('این محیط از اعلان مرورگر پشتیبانی نمی‌کند.');}};
 
 let settingsPrefs={};
@@ -150,11 +150,11 @@ async function openSettings(){
  $('settingsDisplayName').textContent=user?.user_metadata?.display_name||user?.email?.split('@')[0]||'حساب Moon Time';
  $('themeToggle').checked=localStorage.getItem('moon-theme')==='light';
  document.body.classList.toggle('light-mode',$('themeToggle').checked);
- $('languageSelect').value=localStorage.getItem('moon-language')||'fa';
+ $('languageSelect').value=localStorage.getItem('moon-language')||settingsPrefs.language||'fa';applyLanguage($('languageSelect').value);
  $('notifyToggle').checked=('Notification'in window)&&Notification.permission==='granted';
  await loadSettingsPrefs();
  if(settingsPrefs.theme){$('themeToggle').checked=settingsPrefs.theme==='light';localStorage.setItem('moon-theme',settingsPrefs.theme);document.body.classList.toggle('light-mode',$('themeToggle').checked);}
- if(settingsPrefs.language){$('languageSelect').value=settingsPrefs.language;localStorage.setItem('moon-language',settingsPrefs.language);}
+ if(settingsPrefs.language){$('languageSelect').value=settingsPrefs.language;localStorage.setItem('moon-language',settingsPrefs.language);applyLanguage(settingsPrefs.language);}
  const avatar=user?.user_metadata?.avatar_url;
  if(avatar){$('settingsAvatar').style.backgroundImage='url("'+avatar+'")';$('settingsAvatar').textContent='';}
  settingsScreen.classList.add('open');
@@ -253,6 +253,19 @@ $('settingsContent').addEventListener('click',async e=>{
  }catch(err){alert('انجام عملیات ناموفق بود: '+(err.message||err));}
 });
 
+
+
+const UI_FA_EN={
+'ارتباطی فراتر از مرزها':'Connection beyond borders','جست‌وجوی گفتگوها…':'Search chats…','گفتگوها':'Chats','＋ گفتگو':'＋ Chat','＋ گروه':'＋ Group','＋ کانال':'＋ Channel','افزودن عضو':'Add member','حساب':'Account','خروج':'Log out','ارسال':'Send','پیامت را بنویس…':'Write a message…','به Moon Time خوش آمدی':'Welcome to Moon Time','برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.':'Start by creating a chat or a group.','برای ساخت حساب آنلاین یا ورود، اطلاعاتت را وارد کن.':'Enter your details to sign up or log in.','کد معرف (فقط ثبت‌نام)':'Invite code (sign-up only)','نام نمایشی':'Display name','ایمیل':'Email','رمز عبور (حداقل ۸ کاراکتر)':'Password (at least 8 characters)','ثبت‌نام آنلاین':'Sign up','ورود به حساب':'Log in','ارسال دوباره ایمیل تأیید':'Resend confirmation email','منوی اصلی':'Main menu','مخاطبین':'Contacts','تماس‌ها':'Calls','پیام‌های ذخیره‌شده':'Saved messages','تنظیمات':'Settings','گروه جدید':'New group','کانال جدید':'New channel','جست‌وجو':'Search','حساب Moon Time':'Moon Time account','حساب کاربری':'Account','ویرایش پروفایل':'Edit profile','نام نمایشی و اطلاعات حساب':'Display name and account details','عکس پروفایل':'Profile photo','بارگذاری عکس تا ۳ مگابایت':'Upload a photo up to 3 MB','نام کاربری':'Username','شناسه قابل‌اشتراک‌گذاری':'Shareable username','تغییر رمز عبور':'Change password','تغییر ایمیل حساب':'Change account email','اعلان‌ها و صداها':'Notifications and sounds','اجازه اعلان مرورگر':'Browser notification permission','حالت شب':'Dark mode','تغییر پوسته برنامه':'Change app theme','زبان برنامه':'App language','حریم خصوصی و امنیت':'Privacy and security','حریم خصوصی':'Privacy','تنظیمات قابل‌دسترسی حساب':'Available account privacy settings','دستگاه‌های متصل':'Connected devices','اطلاعات نشست فعلی':'Current session information','گفتگوها و داده‌ها':'Chats and data','پوشه‌های گفتگو':'Chat folders','ساخت فیلترهای محلی برای گفتگوها':'Create local chat filters','فضای ذخیره‌سازی و داده‌ها':'Storage and data','پاک‌سازی داده‌های موقت این دستگاه':'Clear temporary data on this device','درباره':'About','دریافت نسخه‌ای از اطلاعات حساب':'Export account data','نسخه و اطلاعات برنامه':'App version and information','بازگشت':'Back'
+};
+function applyLanguage(lang){
+ const en=lang==='en';document.documentElement.lang=en?'en':'fa';document.documentElement.dir=en?'ltr':'rtl';document.body.classList.toggle('english',en);
+ const map=en?UI_FA_EN:Object.fromEntries(Object.entries(UI_FA_EN).map(([fa,english])=>[english,fa]));
+ const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+ let node;while((node=walker.nextNode())){const raw=node.nodeValue,trim=raw.trim();if(map[trim])node.nodeValue=raw.replace(trim,map[trim]);}
+ const placeholders={search:['جست‌وجوی گفتگوها…','Search chats…'],messageInput:['پیامت را بنویس…','Write a message…'],inviteInput:['کد معرف (فقط ثبت‌نام)','Invite code (sign-up only)'],regName:['نام نمایشی','Display name'],emailInput:['ایمیل','Email'],passwordInput:['رمز عبور (حداقل ۸ کاراکتر)','Password (at least 8 characters)']};
+ for(const [id,pair] of Object.entries(placeholders))if($(id))$(id).placeholder=pair[en?1:0];
+}
 
 let callPc=null,callStream=null,activeCall=null,callSignal=null,iceSignal=null,callRemoteId=null,callHandled=new Set();
 const rtcConfig={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
