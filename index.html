@@ -140,7 +140,7 @@ async function openSettings(){
  $('notifyToggle').checked=('Notification'in window)&&Notification.permission==='granted';
  await loadSettingsPrefs();
  const avatar=user?.user_metadata?.avatar_url;
- if(avatar){$('settingsAvatar').style.backgroundImage='url(\\"'+avatar+'\\")';$('settingsAvatar').textContent='';}
+ if(avatar){$('settingsAvatar').style.backgroundImage='url("'+avatar+'")';$('settingsAvatar').textContent='';}
  settingsScreen.classList.add('open');
 }
 async function uploadAvatar(){
