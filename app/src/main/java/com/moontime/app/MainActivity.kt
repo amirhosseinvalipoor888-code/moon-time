@@ -157,15 +157,11 @@ private class MoonApi(context:Context) {
         val cleanTitle=title.trim()
         if(cleanTitle.length<2) error("نام گروه یا کانال باید حداقل ۲ نویسه باشد.")
         if(kind!="group" && kind!="channel") error("نوع گفتگو نامعتبر است.")
-        val payload=JSONObject().put("title",cleanTitle.take(60)).put("is_group",kind=="group").put("kind",kind).put("created_by",uid)
-        val created=JSONArray(request("/rest/v1/conversations","POST",payload.toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        val created=JSONArray(request("/rest/v1/rpc/create_moon_conversation","POST",
+            JSONObject().put("p_title",cleanTitle.take(60)).put("p_kind",kind).toString(),true))
         if(created.length()==0) error("سرور گفتگو را نساخت؛ پاسخ خالی دریافت شد.")
         val row=created.getJSONObject(0)
         val id=row.getString("id")
-        // The database trigger normally inserts the creator. Ensure membership as a safe fallback.
-        request("/rest/v1/conversation_members?on_conflict=conversation_id,user_id","POST",
-            JSONObject().put("conversation_id",id).put("user_id",uid).toString(),true,"application/json",
-            mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
         return Room(id,row.optString("title",cleanTitle),kind)
     }
     suspend fun lookupContact(emailTarget:String):MoonContact {
@@ -184,11 +180,11 @@ private class MoonApi(context:Context) {
         val targetId=target.getString("id")
         if(targetId==uid) error("نمی‌توانی با حساب خودت گفتگوی خصوصی بسازی.")
         val title=target.optString("display_name").ifBlank{"گفتگوی خصوصی"}
-        val created=JSONArray(request("/rest/v1/conversations","POST",JSONObject().put("title",title).put("is_group",false).put("kind","direct").put("created_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        val created=JSONArray(request("/rest/v1/rpc/create_moon_conversation","POST",
+            JSONObject().put("p_title",title).put("p_kind","direct").toString(),true))
         if(created.length()==0) error("سرور گفتگوی خصوصی را نساخت؛ پاسخ خالی دریافت شد.")
         val room=created.getJSONObject(0)
         val id=room.getString("id")
-        // The creator is added by trigger; add the other participant with duplicate-safe semantics.
         request("/rest/v1/conversation_members?on_conflict=conversation_id,user_id","POST",
             JSONObject().put("conversation_id",id).put("user_id",targetId).toString(),true,"application/json",
             mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
