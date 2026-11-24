@@ -92,6 +92,7 @@ async function showApp(){
   else setStatus('متصل به سرور Moon Time');
   await loadConversations();
   initRealtimeCalls();
+  initMessageNotifications();
 }
 async function register(){
  try{
@@ -299,12 +300,11 @@ async function startCall(kind){
   await setupPeer(target.id,'pending');
   const offer=await callPc.createOffer();await callPc.setLocalDescription(offer);
   const {data:row,error:ce}=await sb.from('call_sessions').insert({conversation_id:currentId,caller_id:user.id,callee_id:target.id,call_type:kind,offer:callPc.localDescription.toJSON(),status:'ringing'}).select().single();
-  if(ce)throw ce;activeCall=row;
+  if(ce)throw ce;const queuedIce=activeCall.pendingIce||[];activeCall=row;
   // Recreate ICE subscription with the persisted call id; pending candidates are still inserted only after call creation.
   if(iceSignal)await sb.removeChannel(iceSignal);
   iceSignal=sb.channel('ice-'+row.id+'-'+user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'call_ice_candidates',filter:'call_id=eq.'+row.id},async payload=>{const c=payload.new;if(c.recipient_id===user.id&&c.sender_id===target.id&&callPc)try{await callPc.addIceCandidate(new RTCIceCandidate(c.candidate));}catch(e){console.warn(e);}}).subscribe();
-  for(const candidate of (row.pendingIce||[])){const {error}=await sb.from('call_ice_candidates').insert({call_id:row.id,sender_id:user.id,recipient_id:target.id,candidate});if(error)setStatus(error.message);}
-  row.pendingIce=[];
+  for(const candidate of queuedIce){const {error}=await sb.from('call_ice_candidates').insert({call_id:row.id,sender_id:user.id,recipient_id:target.id,candidate});if(error)setStatus(error.message);}
   await watchCall(row.id,target.id);$('callStatus').textContent='در انتظار پاسخ طرف مقابل…';
  }catch(e){await stopCall(false);alert('شروع تماس ناموفق بود: '+(e.message||e));}
 }
@@ -335,6 +335,21 @@ $('audioCallBtn').onclick=()=>startCall('audio');$('videoCallBtn').onclick=()=>s
 $('hangupBtn').onclick=()=>stopCall(true);
 $('toggleMicBtn').onclick=()=>{const t=callStream?.getAudioTracks()[0];if(t){t.enabled=!t.enabled;$('toggleMicBtn').textContent=t.enabled?'🎙 میکروفن':'🔇 میکروفن خاموش';}};
 $('toggleCamBtn').onclick=()=>{const t=callStream?.getVideoTracks()[0];if(!t)return alert('این تماس فقط صوتی است.');t.enabled=!t.enabled;$('toggleCamBtn').textContent=t.enabled?'📷 دوربین':'🚫 دوربین خاموش';};
+
+
+let messageNoticeChannel=null;
+async function initMessageNotifications(){
+ if(!user||messageNoticeChannel)return;
+ messageNoticeChannel=sb.channel('moon-notifications-'+user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},async payload=>{
+  const m=payload.new;if(!m||m.sender_id===user.id||m.conversation_id===currentId)return;
+  if(!('Notification'in window)||Notification.permission!=='granted')return;
+  const prefs=(await sb.from('user_settings').select('preferences').eq('user_id',user.id).maybeSingle()).data?.preferences||{};
+  if(prefs.notifications===false)return;
+  const {data:room}=await sb.from('conversations').select('title').eq('id',m.conversation_id).maybeSingle();
+  const notice=new Notification(room?.title||'پیام جدید در Moon Time',{body:String(m.body||'فایل جدید').slice(0,120),tag:'moon-'+m.conversation_id});
+  notice.onclick=()=>{window.focus();openConversation(m.conversation_id,room?.title||'گفتگو','direct');notice.close();};
+ }).subscribe();
+}
 
 function clearChats(){$('chatList').innerHTML='';}
 async function loadConversations(){
@@ -435,7 +450,7 @@ $('resendBtn').onclick=async()=>{try{showError('');const email=$('emailInput').v
 $('newChat').onclick=createDirect;$('newGroup').onclick=()=>createRoom('group');$('newChannel').onclick=()=>createRoom('channel');
 $('addMemberBtn').onclick=addMember;
 $('profileBtn').onclick=async()=>{const {data,error}=await sb.from('profiles').select('display_name,email,role').eq('id',user.id).maybeSingle();if(error){setStatus(error.message);return;}alert('نام: '+(data?.display_name||'')+'\nایمیل: '+user.email+'\nنقش: '+(data?.role||'member'));};
-$('logoutBtn').onclick=async()=>{await sb.auth.signOut();if(subscription)await sb.removeChannel(subscription);if(window.__moonCallListener){await sb.removeChannel(window.__moonCallListener);window.__moonCallListener=null;}await stopCall(false);user=null;currentId=null;$('appRoot').style.display='none';$('authGate').style.display='grid';};
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();if(subscription)await sb.removeChannel(subscription);if(window.__moonCallListener){await sb.removeChannel(window.__moonCallListener);window.__moonCallListener=null;}if(messageNoticeChannel){await sb.removeChannel(messageNoticeChannel);messageNoticeChannel=null;}await stopCall(false);user=null;currentId=null;$('appRoot').style.display='none';$('authGate').style.display='grid';};
 $('back').onclick=()=>{main.classList.remove('show');side.classList.remove('hidden');};
 $('search').addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase();document.querySelectorAll('#chatList .chat').forEach(x=>x.style.display=x.dataset.name.toLocaleLowerCase().includes(q)?'flex':'none');});
 sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){user=null;$('authGate').style.display='grid';$('appRoot').style.display='none';}});
