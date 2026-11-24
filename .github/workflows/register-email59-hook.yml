@@ -1,0 +1,46 @@
+name: Register Email59 Supabase Hook
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  register-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Register hook with Email59
+        id: register
+        env:
+          EMAIL59_API_KEY: ${{ secrets.EMAIL59_API_KEY }}
+          SUPABASE_HOOK_SECRET: ${{ secrets.SUPABASE_HOOK_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${EMAIL59_API_KEY:-}" ] || [ -z "${SUPABASE_HOOK_SECRET:-}" ]; then
+            echo "::error::Missing EMAIL59_API_KEY or SUPABASE_HOOK_SECRET repository secret."
+            exit 1
+          fi
+
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST "https://email59.com/v1/hooks/supabase" \
+            --header "Authorization: Bearer ${EMAIL59_API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data "$(jq -n \
+              --arg secret "$SUPABASE_HOOK_SECRET" \
+              --arg supabase_url "https://krmuwbxjsjrezwnhybxa.supabase.co" \
+              '{secret: $secret, supabase_url: $supabase_url, app_name: "Moon Time", from: "auth"}')")"
+
+          hook_url="$(printf '%s' "$response" | jq -er '.url')"
+          case "$hook_url" in
+            https://email59.com/v1/hooks/supabase/*) ;;
+            *) echo "::error::Email59 returned an unexpected hook URL."; exit 1 ;;
+          esac
+
+          echo "hook_url=$hook_url" >> "$GITHUB_OUTPUT"
+          echo "## Email59 hook registered" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Copy this URL into Supabase → Authentication → Hooks → Send Email Hook → URL:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "$hook_url" >> "$GITHUB_STEP_SUMMARY"
