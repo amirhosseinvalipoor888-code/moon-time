@@ -173,12 +173,12 @@ private class LocalStore(context:Context) {
     private val prefs=context.getSharedPreferences("moon_time_local",Context.MODE_PRIVATE)
     fun chats()=listOf(ChatItem(1,"تیم مون‌تایم","به فضای جدید خوش اومدی ✨","۱۸:۴۲","🌙",2,true),ChatItem(2,"آرین","فردا می‌بینمت!","۱۷:۲۰","🪐",0,true),ChatItem(3,"گروه دوستان","چه خبر از همگی؟","دیروز","🚀",5),ChatItem(4,"طراحی و ایده‌ها","طرح جدید خیلی خوب شده","دوشنبه","🎨"))
     fun messages(id:Int):List<ChatMessage> {
-        val raw=prefs.getString("chat_$"+"$"+"id",null)?:return emptyList()
+        val raw=prefs.getString("chat_" + id,null)?:return emptyList()
         return try {val arr=JSONArray(raw);(0 until arr.length()).map{i->arr.getJSONObject(i).let{ChatMessage(id,it.getString("text"),it.getBoolean("mine"),it.getString("time"))}}}catch(_:Exception){emptyList()}
     }
     fun add(message:ChatMessage) {
         val arr=JSONArray()
         (messages(message.chatId)+message).forEach{arr.put(JSONObject().put("text",it.text).put("mine",it.mine).put("time",it.time))}
-        prefs.edit().putString("chat_$"+"$"+"{message.chatId}",arr.toString()).apply()
+        prefs.edit().putString("chat_" + message.chatId,arr.toString()).apply()
     }
 }
