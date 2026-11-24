@@ -28,7 +28,7 @@ let user=null,currentId=null,currentName='گفتگوها',subscription=null;
 const status=document.getElementById('netStatus');
 const err=document.getElementById('authError');
 function showError(t){err.textContent=t}
-function showApp(){document.getElementById('authGate').style.display='none';document.getElementById('appRoot').style.display='grid';document.getElementById('currentName').textContent=user.email||'حساب من';status.textContent='آنلاین • متصل به سرور Moon Time';loadConversations()}
+async function showApp(){document.getElementById('authGate').style.display='none';document.getElementById('appRoot').style.display='grid';document.getElementById('currentName').textContent=user.email||'حساب من';status.textContent='آنلاین • متصل به سرور Moon Time';await sb.from('profiles').upsert({id:user.id,display_name:user.user_metadata?.display_name||user.email?.split('@')[0]||'کاربر',email:user.email},{onConflict:'id'});loadConversations()}
 async function register(){try{
  const code=document.getElementById('inviteInput').value.trim().toUpperCase(),name=document.getElementById('regName').value.trim(),email=document.getElementById('emailInput').value.trim(),password=document.getElementById('passwordInput').value;
  if(name.length<2)throw Error('نام نمایشی را وارد کن.');
