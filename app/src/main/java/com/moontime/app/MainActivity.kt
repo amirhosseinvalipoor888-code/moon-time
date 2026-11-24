@@ -21,7 +21,7 @@ class MainActivity : Activity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            cacheMode = WebSettings.LOAD_DEFAULT
+            cacheMode = WebSettings.LOAD_NO_CACHE
             allowFileAccess = false
             allowContentAccess = false
             javaScriptCanOpenWindowsAutomatically = false
@@ -31,16 +31,9 @@ class MainActivity : Activity() {
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
-        val html = assets.open("index.html").bufferedReader(Charsets.UTF_8).use { it.readText() }
-        // Give the bundled HTML a secure HTTPS origin so Supabase auth/API calls are not sent
-        // from the opaque file:// origin used by a normal local WebView page.
-        webView.loadDataWithBaseURL(
-            "https://krmuwbxjsjrezwnhybxa.supabase.co/",
-            html,
-            "text/html",
-            "UTF-8",
-            null
-        )
+        // Always load the current hosted web app so auth fixes do not require
+        // bundling another stale HTML copy into the APK.
+        webView.loadUrl("https://cdn.jsdelivr.net/gh/amirhosseinvalipoor888-code/moon-time@main/index.html")
         setContentView(webView)
     }
 
