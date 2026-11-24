@@ -13,6 +13,7 @@ import androidx.work.WorkerParameters
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
@@ -93,7 +94,7 @@ class NotificationSyncWorker(context: Context, params: WorkerParameters) : Corou
     ).execute()
 
     private fun refreshSession(refresh: String): String? {
-        val body = JSONObject().put("refresh_token", refresh).toString().toRequestBody("application/json".toMediaTypeCompat())
+        val body = JSONObject().put("refresh_token", refresh).toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url("$base/auth/v1/token?grant_type=refresh_token")
             .header("apikey", key).post(body).build()
         val response = client.newCall(request).execute()
@@ -112,5 +113,4 @@ class NotificationSyncWorker(context: Context, params: WorkerParameters) : Corou
         }
     }
 
-    private fun okhttp3.MediaType.Companion.toMediaTypeCompat() = "application/json".toMediaTypeCompatInternal()
 }
