@@ -8,11 +8,58 @@
 @media(max-width:700px){.app{display:block;border:0}.side{padding:17px 14px;border:0}.side.hidden{display:none}.main{display:none;min-height:100dvh}.main.show{display:flex}.side .brand{margin-bottom:16px}.section{margin-top:15px}.top{height:68px;padding:0 13px}.messages{padding:15px}.composer{padding:11px}.mobile-title{display:block;margin-right:auto}.actions .icon{padding:8px}.back{display:block!important}.side.hidden+.main{display:flex}}
 .back{display:none}
 .auth{position:fixed;inset:0;z-index:20;background:radial-gradient(circle at 20% 10%,#30265e,transparent 42%),#0b1020;display:grid;place-items:center;padding:20px}.auth-card{width:min(420px,100%);background:#151b30;border:1px solid #30385b;border-radius:24px;padding:26px;box-shadow:0 25px 90px #0008}.auth-card h1{margin:8px 0;font-size:25px}.auth-card p{color:var(--muted);font-size:13px;line-height:1.9}.auth-card input{width:100%;margin:7px 0;padding:14px;border-radius:12px;border:1px solid var(--line);background:#0d1427;color:white;font:inherit}.auth-card button,.primary{width:100%;padding:13px;border:0;border-radius:12px;background:linear-gradient(135deg,#8c7bff,#5b50c9);color:white;font:inherit;margin-top:10px}.auth-error{color:#ff9baf!important;min-height:20px}.side-tools{display:flex;gap:7px;margin-top:14px}.side-tools button{flex:1;padding:10px 5px;font-size:11px}.chat-kind{font-size:9px;color:var(--cyan);margin-right:5px}.side .section{display:flex;justify-content:space-between;align-items:center}
+
+/* Telegram-like navigation and settings */
+.menu-trigger{font-size:22px!important;min-width:42px;padding:7px!important}
+.overflow-menu{position:fixed;z-index:60;top:68px;left:14px;width:245px;background:#18213a;border:1px solid #354263;border-radius:16px;padding:7px;box-shadow:0 18px 55px #0009;display:none}
+.overflow-menu.open{display:block}.overflow-menu button{width:100%;border:0;background:transparent;color:var(--text);font:inherit;text-align:right;padding:12px;border-radius:10px;cursor:pointer}.overflow-menu button:hover{background:#ffffff12}.overflow-menu .sep{height:1px;background:var(--line);margin:5px}
+.settings-screen{position:fixed;inset:0;z-index:55;background:var(--bg);display:none;overflow:auto}
+.settings-screen.open{display:block}.settings-head{position:sticky;top:0;background:#11182bea;backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:15px 18px;display:flex;align-items:center;gap:13px}
+.settings-head button{border:0;background:var(--panel2);color:white;border-radius:11px;padding:9px 13px;font-size:20px}
+.settings-wrap{max-width:760px;margin:24px auto;padding:0 16px 45px}.settings-profile{display:flex;align-items:center;gap:15px;background:linear-gradient(120deg,#282052,#17233d);padding:20px;border:1px solid var(--line);border-radius:18px;margin-bottom:18px}
+.settings-avatar{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#8c7bff,#3e9caa);font-size:25px}
+.settings-group{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin:13px 0;overflow:hidden}
+.settings-group h3{font-size:12px;color:var(--cyan);font-weight:normal;padding:14px 16px 5px;margin:0}
+.setting-row{display:flex;align-items:center;gap:13px;padding:14px 16px;border:0;border-top:1px solid #ffffff0b;background:transparent;color:var(--text);width:100%;text-align:right;font:inherit;cursor:pointer}
+.setting-row .ico{width:27px;text-align:center;font-size:19px}.setting-row .desc{display:block;color:var(--muted);font-size:11px;margin-top:4px}.setting-row .arrow{margin-right:auto;color:var(--muted)}
+.setting-row input,.setting-row select{margin-right:auto;accent-color:var(--accent);background:var(--panel2);color:white;border:1px solid var(--line);padding:8px;border-radius:8px}
+.settings-field{display:block;padding:12px 16px;color:var(--muted);font-size:12px}.settings-field input{display:block;width:100%;margin-top:8px;padding:12px;background:#0d1427;border:1px solid var(--line);border-radius:10px;color:white;font:inherit}
+.settings-action{background:var(--accent);color:white;border:0;border-radius:10px;padding:11px 16px;margin:8px 16px 16px;font:inherit}
+body.light-mode{--bg:#eef1f8;--panel:#fff;--panel2:#e5e9f5;--line:#d3d9e8;--text:#20253a;--muted:#65708c;background:#eef1f8;color:#20253a}
+body.light-mode .app{background:#f5f7fc}body.light-mode .top,body.light-mode .settings-head{background:#f5f7f8}body.light-mode .icon{color:#20253a}
+@media(max-width:700px){.overflow-menu{top:60px;left:8px}.settings-wrap{margin:14px auto}.settings-head{padding:12px}}
 </style></head>
 <body>
 <div class="auth" id="authGate"><div class="auth-card"><div class="moon">☾</div><h1>Moon Time</h1><p>برای ساخت حساب آنلاین یا ورود، اطلاعاتت را وارد کن.</p><input id="inviteInput" placeholder="کد معرف (فقط ثبت‌نام)" autocomplete="off"><input id="regName" placeholder="نام نمایشی" maxlength="32"><input id="emailInput" type="email" placeholder="ایمیل"><input id="passwordInput" type="password" placeholder="رمز عبور (حداقل ۸ کاراکتر)"><button id="enterBtn">ثبت‌نام آنلاین</button><button id="loginBtn" style="background:#293252">ورود به حساب</button><button id="resendBtn" style="background:#293252">ارسال دوباره ایمیل تأیید</button><p class="auth-error" id="authError"></p></div></div>
 <div class="app" id="appRoot"><aside class="side" id="side"><div class="brand"><div class="moon">☾</div><div><b>Moon Time</b><small>ارتباطی فراتر از مرزها</small></div></div><input class="search" id="search" placeholder="جست‌وجوی گفتگوها…"><div class="section">گفتگوها</div><div class="side-tools"><button class="icon" id="newChat">＋ گفتگو</button><button class="icon" id="newGroup">＋ گروه</button><button class="icon" id="newChannel">＋ کانال</button></div><div id="chatList"></div></aside>
-<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small id="chatStatus">آماده اتصال</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon" id="addMemberBtn" title="افزودن عضو">افزودن عضو</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button><button class="icon" id="logoutBtn" title="خروج">خروج</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">در حال بررسی اتصال به سرور…</div></main></div>
+<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small id="chatStatus">آماده اتصال</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon menu-trigger" id="mainMenuBtn" aria-label="منوی اصلی">⋮</button><button class="icon" id="addMemberBtn" title="افزودن عضو">افزودن عضو</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button><button class="icon" id="logoutBtn" title="خروج">خروج</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">در حال بررسی اتصال به سرور…</div></main></div>
+
+<div class="overflow-menu" id="overflowMenu" role="menu">
+<button data-action="contacts">👤　مخاطبین</button><button data-action="calls">☎️　تماس‌ها</button><button data-action="saved">🔖　پیام‌های ذخیره‌شده</button><button data-action="settings">⚙️　تنظیمات</button><div class="sep"></div><button data-action="newgroup">👥　گروه جدید</button><button data-action="newchannel">▣　کانال جدید</button><button data-action="search">⌕　جست‌وجو</button>
+</div>
+<section class="settings-screen" id="settingsScreen">
+<header class="settings-head"><button id="closeSettings" aria-label="بازگشت">‹</button><b id="settingsTitle">تنظیمات</b></header>
+<div class="settings-wrap" id="settingsContent">
+<div class="settings-profile"><div class="settings-avatar">☾</div><div><b id="settingsDisplayName">حساب Moon Time</b><div id="settingsEmail" style="color:var(--muted);font-size:12px;margin-top:5px"></div></div></div>
+<div class="settings-group"><h3>حساب کاربری</h3>
+<button class="setting-row" data-setting="editprofile"><span class="ico">✏️</span><span>ویرایش پروفایل<span class="desc">نام نمایشی و اطلاعات حساب</span></span><span class="arrow">‹</span></button>
+<button class="setting-row" data-setting="username"><span class="ico">🪪</span><span>نام کاربری<span class="desc">شناسه قابل‌اشتراک‌گذاری</span></span><span class="arrow">‹</span></button>
+</div>
+<div class="settings-group"><h3>تنظیمات</h3>
+<label class="setting-row"><span class="ico">🔔</span><span>اعلان‌ها و صداها<span class="desc">اجازه اعلان مرورگر</span></span><input id="notifyToggle" type="checkbox"></label>
+<label class="setting-row"><span class="ico">🌙</span><span>حالت شب<span class="desc">تغییر پوسته برنامه</span></span><input id="themeToggle" type="checkbox"></label>
+<label class="setting-row"><span class="ico">🌐</span><span>زبان برنامه</span><select id="languageSelect"><option value="fa">فارسی</option><option value="en">English</option></select></label>
+</div>
+<div class="settings-group"><h3>حریم خصوصی و امنیت</h3>
+<button class="setting-row" data-setting="privacy"><span class="ico">🔒</span><span>حریم خصوصی<span class="desc">تنظیمات قابل‌دسترسی حساب</span></span><span class="arrow">‹</span></button>
+<button class="setting-row" data-setting="sessions"><span class="ico">📱</span><span>دستگاه‌های متصل<span class="desc">اطلاعات نشست فعلی</span></span><span class="arrow">‹</span></button>
+</div>
+<div class="settings-group"><h3>گفتگوها و داده‌ها</h3>
+<button class="setting-row" data-setting="folders"><span class="ico">📁</span><span>پوشه‌های گفتگو<span class="desc">ساخت فیلترهای محلی برای گفتگوها</span></span><span class="arrow">‹</span></button>
+<button class="setting-row" data-setting="storage"><span class="ico">💾</span><span>فضای ذخیره‌سازی و داده‌ها<span class="desc">پاک‌سازی داده‌های موقت این دستگاه</span></span><span class="arrow">‹</span></button>
+</div>
+<div class="settings-group"><h3>درباره</h3><button class="setting-row" data-setting="about"><span class="ico">☾</span><span>درباره Moon Time<span class="desc">نسخه و اطلاعات برنامه</span></span><span class="arrow">‹</span></button></div>
+</div></section>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 'use strict';
@@ -62,6 +109,25 @@ async function login(){
   user=data.user;await showApp();
  }catch(e){showError(e.message||'ورود انجام نشد.');}
 }
+
+const menu=$('overflowMenu'),settingsScreen=$('settingsScreen');
+$('mainMenuBtn').onclick=()=>menu.classList.toggle('open');
+document.addEventListener('click',e=>{if(!menu.contains(e.target)&&!$('mainMenuBtn').contains(e.target))menu.classList.remove('open');});
+function openSettings(){menu.classList.remove('open');$('settingsEmail').textContent=user?.email||'';$('settingsDisplayName').textContent=user?.user_metadata?.display_name||user?.email?.split('@')[0]||'حساب Moon Time';$('themeToggle').checked=localStorage.getItem('moon-theme')==='light';document.body.classList.toggle('light-mode',$('themeToggle').checked);$('languageSelect').value=localStorage.getItem('moon-language')||'fa';$('notifyToggle').checked=Notification.permission==='granted';settingsScreen.classList.add('open');}
+$('closeSettings').onclick=()=>settingsScreen.classList.remove('open');
+$('overflowMenu').addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(!b)return;const a=b.dataset.action;menu.classList.remove('open');if(a==='settings')openSettings();else if(a==='newgroup')createRoom('group');else if(a==='newchannel')createRoom('channel');else if(a==='search'){$('search').focus();}else if(a==='contacts'){alert('مخاطبین: برای شروع گفتگوی خصوصی از دکمه «گفتگو» استفاده کن و ایمیل کاربر را وارد کن.');}else if(a==='calls'){alert('تماس صوتی و تصویری هنوز در این نسخه پیاده‌سازی نشده است.');}else if(a==='saved'){alert('پیام‌های ذخیره‌شده هنوز به فضای ابری متصل نشده‌اند.');}});
+$('themeToggle').onchange=e=>{document.body.classList.toggle('light-mode',e.target.checked);localStorage.setItem('moon-theme',e.target.checked?'light':'dark');};
+$('languageSelect').onchange=e=>{localStorage.setItem('moon-language',e.target.value);alert(e.target.value==='en'?'English interface translation will be applied as the interface is localized.':'زبان فارسی انتخاب شد.');};
+$('notifyToggle').onchange=async e=>{if(e.target.checked&&'Notification'in window){const p=await Notification.requestPermission();e.target.checked=p==='granted';if(p!=='granted')alert('اجازه اعلان از تنظیمات مرورگر یا گوشی داده نشد.');}else if(!('Notification'in window)){e.target.checked=false;alert('این محیط از اعلان مرورگر پشتیبانی نمی‌کند.');}};
+$('settingsContent').addEventListener('click',async e=>{const b=e.target.closest('[data-setting]');if(!b)return;const k=b.dataset.setting;
+if(k==='editprofile'){const current=user?.user_metadata?.display_name||'';const name=prompt('نام نمایشی جدید:',current);if(name===null||name.trim().length<2)return alert('نام باید حداقل دو نویسه باشد.');const {error}=await sb.auth.updateUser({data:{display_name:name.trim()}});if(error)return alert(error.message);await sb.from('profiles').upsert({id:user.id,display_name:name.trim(),email:user.email},{onConflict:'id'});user={...user,user_metadata:{...user.user_metadata,display_name:name.trim()}};$('settingsDisplayName').textContent=name.trim();alert('نام نمایشی به‌روزرسانی شد.');}
+else if(k==='username')alert('نام کاربری عمومی هنوز در پایگاه داده تعریف نشده است.');
+else if(k==='privacy')alert('ورود به حساب با ایمیل و تأیید Supabase مدیریت می‌شود. گزینه‌های پیشرفته حریم خصوصی هنوز پیاده‌سازی نشده‌اند.');
+else if(k==='sessions')alert('نشست فعلی: '+(user?.email||'')+'\nشناسه کاربر: '+(user?.id||'')+'\nمدیریت و قطع نشست‌های دیگر هنوز فعال نیست.');
+else if(k==='folders'){const name=prompt('نام پوشه جدید را وارد کن:');if(name?.trim()){const folders=JSON.parse(localStorage.getItem('moon-folders')||'[]');folders.push(name.trim());localStorage.setItem('moon-folders',JSON.stringify([...new Set(folders)]));alert('پوشه محلی ساخته شد: '+name.trim());}}
+else if(k==='storage'){if(confirm('داده‌های موقت و تنظیمات محلی این دستگاه پاک شوند؟')){localStorage.removeItem('moon-folders');alert('فهرست پوشه‌های محلی پاک شد. پیام‌های حساب حذف نمی‌شوند.');}}
+else if(k==='about')alert('Moon Time\nنسخه آزمایشی\nپیام‌رسان آنلاین مبتنی بر Supabase');});
+
 function clearChats(){$('chatList').innerHTML='';}
 async function loadConversations(){
  if(!user)return;
