@@ -34,6 +34,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,10 +65,22 @@ private val Muted = Color(0xFF9BA8C8)
 private val http = OkHttpClient.Builder().connectTimeout(25, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).build()
 
 data class Room(val id:String,val title:String,val kind:String)
-data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null)
+data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null,val mediaUrl:String?=null)
+data class MoonContact(val id:String,val name:String,val email:String)
 
 class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); window.statusBarColor=android.graphics.Color.rgb(9,13,27); window.navigationBarColor=android.graphics.Color.rgb(9,13,27); setContent { MoonNativeApp() } }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.statusBarColor=android.graphics.Color.rgb(9,13,27)
+        window.navigationBarColor=android.graphics.Color.rgb(9,13,27)
+        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val work = PeriodicWorkRequestBuilder<NotificationSyncWorker>(15, TimeUnit.MINUTES).setConstraints(constraints).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork("moon-message-notifications", ExistingPeriodicWorkPolicy.KEEP, work)
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 900)
+        }
+        setContent { MoonNativeApp() }
+    }
 }
 
 private class MoonApi(context:Context) {
@@ -138,6 +156,12 @@ private class MoonApi(context:Context) {
         val id=r.getString("id")
         request("/rest/v1/conversation_members","POST",JSONObject().put("conversation_id",id).put("user_id",uid).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
         return Room(id,title,kind)
+    }
+    suspend fun lookupContact(emailTarget:String):MoonContact {
+        val result=JSONArray(request("/rest/v1/rpc/lookup_profile_by_email","POST",JSONObject().put("p_email",emailTarget.trim()).toString()))
+        if(result.length()==0) error("کاربری با این ایمیل پیدا نشد.")
+        val row=result.getJSONObject(0)
+        return MoonContact(row.getString("id"),row.optString("display_name","کاربر"),emailTarget.trim())
     }
     suspend fun direct(emailTarget:String):Room {
         val uid=userId?:error("ابتدا وارد حساب شو")
@@ -232,11 +256,18 @@ private fun MoonNativeApp() {
     var dialogValue by remember { mutableStateOf("") }
     var realtime by remember { mutableStateOf<Realtime?>(null) }
     var online by remember { mutableStateOf(false) }
+    var contactEmail by remember { mutableStateOf("") }
+    var contacts by remember { mutableStateOf(run {
+        val saved = context.getSharedPreferences("moon_contacts", Context.MODE_PRIVATE).getString("items", "[]") ?: "[]"
+        try { val a=JSONArray(saved); (0 until a.length()).map { val o=a.getJSONObject(it); MoonContact(o.getString("id"),o.getString("name"),o.getString("email")) } } catch (_:Exception) { emptyList() }
+    }) }
 
     fun connectRoom(room: Room) {
         scope.launch {
             try {
-                messages = api.messages(room)
+                messages = api.messages(room).map { m ->
+                    if (m.path != null) try { m.copy(mediaUrl = api.signed(m.path)) } catch (_:Exception) { m } else m
+                }
                 realtime?.close()
                 val access = api.token
                 if (access != null) {
@@ -253,6 +284,12 @@ private fun MoonNativeApp() {
                                     record.optString("attachment_path").takeIf { it.isNotBlank() },
                                     record.optString("attachment_name").takeIf { it.isNotBlank() }
                                 )
+                                if (record.optString("attachment_path").isNotBlank()) {
+                                    try {
+                                        val url = api.signed(record.optString("attachment_path"))
+                                        messages = messages.map { if (it.id == messageId) it.copy(mediaUrl = url) else it }
+                                    } catch (_:Exception) { }
+                                }
                             }
                         }
                     }
@@ -434,6 +471,7 @@ private fun MoonNativeApp() {
                             Text("MOON TIME", color = White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
                             Text(if (online) "متصل به گفتگو" else "آماده اتصال", color = Muted, fontSize = 10.sp)
                         }
+                        IconButton(onClick = { dialog = "contacts" }) { Icon(Icons.Default.Contacts, null, tint = White) }
                         IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.PersonAdd, null, tint = White) }
                         IconButton(onClick = { dialog = "group" }) { Icon(Icons.Default.GroupAdd, null, tint = White) }
                         IconButton(onClick = { dialog = "channel" }) { Icon(Icons.Default.Campaign, null, tint = White) }
@@ -563,6 +601,7 @@ private fun MoonNativeApp() {
                     "direct" -> "گفتگوی خصوصی"
                     "new" -> "افزودن عضو"
                     "emoji" -> "ایموجی‌ها"
+                    "contacts" -> "مخاطبین من"
                     else -> "Moon Time"
                 }
                 AlertDialog(
@@ -571,12 +610,60 @@ private fun MoonNativeApp() {
                     title = { Text(dialogTitle, color = White) },
                     text = {
                         if (dialog == "emoji") {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("😀", "🥳", "😍", "🔥", "✨", "🚀", "🌙", "💜", "🎉", "😂").forEach { emoji ->
-                                    Text(emoji, fontSize = 25.sp, modifier = Modifier.clickable {
-                                        input += emoji
-                                        dialog = ""
-                                    })
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                listOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂","🤩","😎","🫶","💫","🌈","🪐","👾","🎊","💯","❤️").chunked(5).forEach { row ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        row.forEach { emoji ->
+                                            Text(emoji, fontSize = 25.sp, modifier = Modifier.clickable {
+                                                input += emoji
+                                                dialog = ""
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (dialog == "contacts") {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Field(contactEmail, { contactEmail = it }, "ایمیل کاربر برای افزودن")
+                                Button(
+                                    enabled = contactEmail.contains("@") && !busy,
+                                    onClick = {
+                                        scope.launch {
+                                            busy = true
+                                            try {
+                                                val contact = api.lookupContact(contactEmail)
+                                                contacts = (contacts.filterNot { it.id == contact.id } + contact)
+                                                val arr = JSONArray()
+                                                contacts.forEach { arr.put(JSONObject().put("id",it.id).put("name",it.name).put("email",it.email)) }
+                                                context.getSharedPreferences("moon_contacts",Context.MODE_PRIVATE).edit().putString("items",arr.toString()).apply()
+                                                contactEmail = ""
+                                                infoText = "مخاطب ذخیره شد."
+                                            } catch(e:Exception) { errorText=e.message ?: "یافتن مخاطب ناموفق بود" }
+                                            finally { busy=false }
+                                        }
+                                    }
+                                ) { Text("افزودن مخاطب") }
+                                if (contacts.isEmpty()) Text("هنوز مخاطبی ذخیره نکرده‌ای.", color=Muted)
+                                contacts.forEach { contact ->
+                                    Row(Modifier.fillMaxWidth().clickable {
+                                        scope.launch {
+                                            busy=true
+                                            try {
+                                                val room=api.direct(contact.email)
+                                                rooms=api.rooms()
+                                                current=room
+                                                connectRoom(room)
+                                                dialog=""
+                                            } catch(e:Exception) { errorText=e.message ?: "شروع گفتگو ناموفق بود" }
+                                            finally { busy=false }
+                                        }
+                                    }.padding(vertical=7.dp), verticalAlignment=Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(contact.name,color=White)
+                                            Text(contact.email,color=Muted,fontSize=11.sp)
+                                        }
+                                        Text("گفتگو",color=Cyan)
+                                    }
                                 }
                             }
                         } else {
@@ -670,8 +757,19 @@ private fun MessageBubble(m: Msg, onOpen: () -> Unit) {
                 .padding(12.dp)
         ) {
             when (m.kind) {
-                "image" -> Text("🖼️ تصویر پیوست‌شده", color = White)
-                "video" -> Text("🎬 ویدیو پیوست‌شده", color = White)
+                "image" -> {
+                    if (m.mediaUrl != null) {
+                        coil.compose.AsyncImage(
+                            model = m.mediaUrl,
+                            contentDescription = m.name ?: "تصویر",
+                            modifier = Modifier.widthIn(max=260.dp).heightIn(max=260.dp).clip(RoundedCornerShape(12.dp))
+                        )
+                    } else Text("🖼️ تصویر پیوست‌شده", color = White)
+                }
+                "video" -> {
+                    Text("🎬 ${m.name ?: "ویدیو پیوست‌شده"}", color = White)
+                    if (m.mediaUrl != null) Text("برای پخش، لمس کن", color = Cyan, fontSize = 10.sp)
+                }
                 "audio" -> Text("🎵 فایل صوتی", color = White)
                 "file" -> Text("📎 ${m.name ?: "فایل پیوست"}", color = White)
             }
