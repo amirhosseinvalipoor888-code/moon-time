@@ -28,12 +28,22 @@
 body.light-mode{--bg:#eef1f8;--panel:#fff;--panel2:#e5e9f5;--line:#d3d9e8;--text:#20253a;--muted:#65708c;background:#eef1f8;color:#20253a}
 body.light-mode .app{background:#f5f7fc}body.light-mode .top,body.light-mode .settings-head{background:#f5f7f8}body.light-mode .icon{color:#20253a}
 @media(max-width:700px){.overflow-menu{top:60px;left:8px}.settings-wrap{margin:14px auto}.settings-head{padding:12px}}
+
+.call-screen{position:fixed;inset:0;z-index:90;background:#090f20ee;display:none;place-items:center;padding:18px}
+.call-screen.open{display:grid}.call-card{width:min(420px,100%);background:#18213a;border:1px solid #354263;border-radius:22px;padding:22px;text-align:center;color:#fff;box-shadow:0 20px 70px #0009}
+.call-card video{width:100%;max-height:260px;background:#080d18;border-radius:14px;object-fit:cover;margin:8px 0}
+.call-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.call-actions button{border:0;border-radius:14px;padding:12px 18px;color:#fff;background:#465a8b;font:inherit}
+.call-actions .hangup{background:#c83e55}.call-actions .accept{background:#269b75}
+.call-muted{font-size:12px;color:#aeb9d3;margin-top:10px}
 </style></head>
 <body>
 <div class="auth" id="authGate"><div class="auth-card"><div class="moon">☾</div><h1>Moon Time</h1><p>برای ساخت حساب آنلاین یا ورود، اطلاعاتت را وارد کن.</p><input id="inviteInput" placeholder="کد معرف (فقط ثبت‌نام)" autocomplete="off"><input id="regName" placeholder="نام نمایشی" maxlength="32"><input id="emailInput" type="email" placeholder="ایمیل"><input id="passwordInput" type="password" placeholder="رمز عبور (حداقل ۸ کاراکتر)"><button id="enterBtn">ثبت‌نام آنلاین</button><button id="loginBtn" style="background:#293252">ورود به حساب</button><button id="resendBtn" style="background:#293252">ارسال دوباره ایمیل تأیید</button><p class="auth-error" id="authError"></p></div></div>
 <div class="app" id="appRoot"><aside class="side" id="side"><div class="brand"><div class="moon">☾</div><div><b>Moon Time</b><small>ارتباطی فراتر از مرزها</small></div></div><input class="search" id="search" placeholder="جست‌وجوی گفتگوها…"><div class="section">گفتگوها</div><div class="side-tools"><button class="icon" id="newChat">＋ گفتگو</button><button class="icon" id="newGroup">＋ گروه</button><button class="icon" id="newChannel">＋ کانال</button></div><div id="chatList"></div></aside>
-<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small id="chatStatus">آماده اتصال</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon menu-trigger" id="mainMenuBtn" aria-label="منوی اصلی">⋮</button><button class="icon" id="addMemberBtn" title="افزودن عضو">افزودن عضو</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button><button class="icon" id="logoutBtn" title="خروج">خروج</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">در حال بررسی اتصال به سرور…</div></main></div>
+<main class="main" id="main"><header class="top"><button class="icon back" id="back">‹</button><div class="avatar" id="currentAvatar">✦</div><div><b id="currentName">یادداشت‌های من</b><small id="chatStatus">آماده اتصال</small></div><div class="mobile-title">Moon Time</div><div class="actions"><button class="icon menu-trigger" id="mainMenuBtn" aria-label="منوی اصلی">⋮</button><button class="icon" id="audioCallBtn" title="تماس صوتی">☎</button><button class="icon" id="videoCallBtn" title="تماس تصویری">▣</button><button class="icon" id="addMemberBtn" title="افزودن عضو">افزودن عضو</button><button class="icon" id="profileBtn" title="حساب کاربری">حساب</button><button class="icon" id="logoutBtn" title="خروج">خروج</button></div></header><section class="messages" id="messages"><div class="welcome"><div class="big">☾</div><b>به Moon Time خوش آمدی</b><br>برای شروع، یک گفتگوی جدید بساز یا گروهی ایجاد کن.</div></section><form class="composer" id="form"><input id="messageInput" autocomplete="off" placeholder="پیامت را بنویس…"><button class="send">ارسال</button></form><div class="notice" id="netStatus">در حال بررسی اتصال به سرور…</div></main></div>
 
+
+<section class="call-screen" id="callScreen"><div class="call-card"><div style="font-size:42px">☾</div><h2 id="callTitle">تماس Moon Time</h2><p id="callStatus">در حال اتصال…</p><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay muted playsinline style="max-height:100px"></video><div class="call-actions"><button id="acceptCallBtn" class="accept" style="display:none">پاسخ</button><button id="toggleMicBtn">🎙 میکروفن</button><button id="toggleCamBtn">📷 دوربین</button><button id="hangupBtn" class="hangup">پایان تماس</button></div><div class="call-muted">تماس مستقیم همتا‌به‌همتا است؛ هر دو نفر باید آنلاین باشند و مجوز میکروفن/دوربین بدهند.</div></div></section>
 <div class="overflow-menu" id="overflowMenu" role="menu">
 <button data-action="contacts">👤　مخاطبین</button><button data-action="calls">☎️　تماس‌ها</button><button data-action="saved">🔖　پیام‌های ذخیره‌شده</button><button data-action="settings">⚙️　تنظیمات</button><div class="sep"></div><button data-action="newgroup">👥　گروه جدید</button><button data-action="newchannel">▣　کانال جدید</button><button data-action="search">⌕　جست‌وجو</button>
 </div>
@@ -81,6 +91,7 @@ async function showApp(){
   if(profile.error)setStatus('ورود برقرار است؛ خطای پروفایل: '+profile.error.message);
   else setStatus('متصل به سرور Moon Time');
   await loadConversations();
+  initRealtimeCalls();
 }
 async function register(){
  try{
@@ -240,6 +251,90 @@ $('settingsContent').addEventListener('click',async e=>{
  }catch(err){alert('انجام عملیات ناموفق بود: '+(err.message||err));}
 });
 
+
+let callPc=null,callStream=null,activeCall=null,callSignal=null,iceSignal=null,callRemoteId=null,callHandled=new Set();
+const rtcConfig={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+function showCallScreen(title,state){$('callTitle').textContent=title||'تماس Moon Time';$('callStatus').textContent=state||'';$('callScreen').classList.add('open');}
+async function stopCall(update=true){
+ const old=activeCall;
+ if(update&&old)await sb.from('call_sessions').update({status:'ended',ended_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',old.id);
+ if(callSignal)await sb.removeChannel(callSignal);if(iceSignal)await sb.removeChannel(iceSignal);
+ callSignal=null;iceSignal=null;
+ if(callPc){callPc.onicecandidate=null;callPc.ontrack=null;callPc.close();callPc=null;}
+ if(callStream)callStream.getTracks().forEach(t=>t.stop());callStream=null;
+ $('localVideo').srcObject=null;$('remoteVideo').srcObject=null;
+ $('acceptCallBtn').style.display='none';$('callScreen').classList.remove('open');
+ activeCall=null;callRemoteId=null;
+}
+async function setupPeer(remoteId,callId){
+ callRemoteId=remoteId;callPc=new RTCPeerConnection(rtcConfig);
+ callStream=await navigator.mediaDevices.getUserMedia({audio:true,video:activeCall.call_type==='video'});
+ callStream.getTracks().forEach(t=>callPc.addTrack(t,callStream));
+ $('localVideo').srcObject=callStream;$('localVideo').style.display=activeCall.call_type==='video'?'block':'none';
+ callPc.ontrack=e=>{$('remoteVideo').srcObject=e.streams[0];$('remoteVideo').style.display='block';};
+ callPc.onicecandidate=async e=>{if(!e.candidate||!activeCall)return;const {error}=await sb.from('call_ice_candidates').insert({call_id:callId,sender_id:user.id,recipient_id:remoteId,candidate:e.candidate.toJSON()});if(error)setStatus('ارسال مسیر تماس ناموفق بود: '+error.message);};
+ iceSignal=sb.channel('ice-'+callId+'-'+user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'call_ice_candidates',filter:'call_id=eq.'+callId},async payload=>{
+  const c=payload.new;if(c.recipient_id!==user.id||c.sender_id!==remoteId)return;
+  try{await callPc.addIceCandidate(new RTCIceCandidate(c.candidate));}catch(err){console.warn('ICE candidate',err);}
+ }).subscribe();
+}
+async function watchCall(callId,remoteId){
+ callSignal=sb.channel('call-'+callId+'-'+user.id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'call_sessions',filter:'id=eq.'+callId},async payload=>{
+  const row=payload.new;if(!activeCall||row.id!==activeCall.id)return;
+  if(row.answer&&callPc&&callPc.signalingState==='have-local-offer'&&!callPc.currentRemoteDescription){try{await callPc.setRemoteDescription(new RTCSessionDescription(row.answer));$('callStatus').textContent='تماس برقرار شد';}catch(e){console.warn(e);}}
+  if(['rejected','ended','missed'].includes(row.status)){ $('callStatus').textContent=row.status==='rejected'?'تماس رد شد':'تماس پایان یافت';setTimeout(()=>stopCall(false),900);}
+ }).subscribe();
+}
+async function startCall(kind){
+ if(!user||!currentId)return alert('ابتدا یک گفتگوی خصوصی را باز کن.');
+ if(currentKind!=='direct')return alert('فعلاً تماس فقط در گفتگوی خصوصی فعال است.');
+ if(!navigator.mediaDevices?.getUserMedia||!window.RTCPeerConnection)return alert('این مرورگر از تماس WebRTC پشتیبانی نمی‌کند.');
+ const email=prompt('ایمیل طرف مقابل را وارد کن:');if(!email)return;
+ try{
+  const {data:found,error}=await sb.rpc('lookup_profile_by_email',{p_email:email.trim()});if(error)throw error;
+  const target=Array.isArray(found)?found[0]:found;if(!target)throw Error('کاربر پیدا نشد.');
+  const {data:mem,error:me}=await sb.from('conversation_members').select('user_id').eq('conversation_id',currentId).eq('user_id',target.id).maybeSingle();
+  if(me)throw me;if(!mem)throw Error('این کاربر عضو این گفتگو نیست.');
+  activeCall={call_type:kind};showCallScreen('تماس با '+(target.display_name||email),'در حال آماده‌سازی تماس…');
+  await setupPeer(target.id,'pending');
+  const offer=await callPc.createOffer();await callPc.setLocalDescription(offer);
+  const {data:row,error:ce}=await sb.from('call_sessions').insert({conversation_id:currentId,caller_id:user.id,callee_id:target.id,call_type:kind,offer:callPc.localDescription.toJSON(),status:'ringing'}).select().single();
+  if(ce)throw ce;activeCall=row;
+  // Recreate ICE subscription with the persisted call id; pending candidates are still inserted only after call creation.
+  if(iceSignal)await sb.removeChannel(iceSignal);
+  iceSignal=sb.channel('ice-'+row.id+'-'+user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'call_ice_candidates',filter:'call_id=eq.'+row.id},async payload=>{const c=payload.new;if(c.recipient_id===user.id&&c.sender_id===target.id&&callPc)try{await callPc.addIceCandidate(new RTCIceCandidate(c.candidate));}catch(e){console.warn(e);}}).subscribe();
+  callPc.onicecandidate=async e=>{if(e.candidate&&activeCall){const {error}=await sb.from('call_ice_candidates').insert({call_id:row.id,sender_id:user.id,recipient_id:target.id,candidate:e.candidate.toJSON()});if(error)setStatus(error.message);}};
+  await watchCall(row.id,target.id);$('callStatus').textContent='در انتظار پاسخ طرف مقابل…';
+ }catch(e){await stopCall(false);alert('شروع تماس ناموفق بود: '+(e.message||e));}
+}
+async function acceptIncomingCall(row){
+ if(activeCall)return;
+ activeCall=row;callHandled.add(row.id);showCallScreen('تماس ورودی','در حال پاسخ…');
+ try{
+  await setupPeer(row.caller_id,row.id);
+  await callPc.setRemoteDescription(new RTCSessionDescription(row.offer));
+  const answer=await callPc.createAnswer();await callPc.setLocalDescription(answer);
+  const {error}=await sb.from('call_sessions').update({answer:callPc.localDescription.toJSON(),status:'accepted',updated_at:new Date().toISOString()}).eq('id',row.id);
+  if(error)throw error;
+  await watchCall(row.id,row.caller_id);$('callStatus').textContent='تماس برقرار شد';
+ }catch(e){await sb.from('call_sessions').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',row.id);await stopCall(false);alert('پاسخ به تماس ناموفق بود: '+e.message);}
+}
+async function initRealtimeCalls(){
+ if(window.__moonCallListener||!user)return;
+ window.__moonCallListener=sb.channel('incoming-calls-'+user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'call_sessions',filter:'callee_id=eq.'+user.id},async payload=>{
+  const row=payload.new;if(row.status!=='ringing'||callHandled.has(row.id)||activeCall)return;
+  callHandled.add(row.id);
+  if('Notification'in window&&Notification.permission==='granted')new Notification('تماس ورودی Moon Time',{body:'تماس '+(row.call_type==='video'?'تصویری':'صوتی')+' دریافت شد.'});
+  $('acceptCallBtn').style.display='inline-block';$('acceptCallBtn').onclick=()=>acceptIncomingCall(row);
+  showCallScreen('تماس ورودی',row.call_type==='video'?'تماس تصویری':'تماس صوتی');
+  $('hangupBtn').onclick=async()=>{await sb.from('call_sessions').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',row.id);await stopCall(false);};
+ }).subscribe();
+}
+$('audioCallBtn').onclick=()=>startCall('audio');$('videoCallBtn').onclick=()=>startCall('video');
+$('hangupBtn').onclick=()=>stopCall(true);
+$('toggleMicBtn').onclick=()=>{const t=callStream?.getAudioTracks()[0];if(t){t.enabled=!t.enabled;$('toggleMicBtn').textContent=t.enabled?'🎙 میکروفن':'🔇 میکروفن خاموش';}};
+$('toggleCamBtn').onclick=()=>{const t=callStream?.getVideoTracks()[0];if(!t)return alert('این تماس فقط صوتی است.');t.enabled=!t.enabled;$('toggleCamBtn').textContent=t.enabled?'📷 دوربین':'🚫 دوربین خاموش';};
+
 function clearChats(){$('chatList').innerHTML='';}
 async function loadConversations(){
  if(!user)return;
@@ -339,7 +434,7 @@ $('resendBtn').onclick=async()=>{try{showError('');const email=$('emailInput').v
 $('newChat').onclick=createDirect;$('newGroup').onclick=()=>createRoom('group');$('newChannel').onclick=()=>createRoom('channel');
 $('addMemberBtn').onclick=addMember;
 $('profileBtn').onclick=async()=>{const {data,error}=await sb.from('profiles').select('display_name,email,role').eq('id',user.id).maybeSingle();if(error){setStatus(error.message);return;}alert('نام: '+(data?.display_name||'')+'\nایمیل: '+user.email+'\nنقش: '+(data?.role||'member'));};
-$('logoutBtn').onclick=async()=>{await sb.auth.signOut();if(subscription)await sb.removeChannel(subscription);user=null;currentId=null;$('appRoot').style.display='none';$('authGate').style.display='grid';};
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();if(subscription)await sb.removeChannel(subscription);if(window.__moonCallListener){await sb.removeChannel(window.__moonCallListener);window.__moonCallListener=null;}await stopCall(false);user=null;currentId=null;$('appRoot').style.display='none';$('authGate').style.display='grid';};
 $('back').onclick=()=>{main.classList.remove('show');side.classList.remove('hidden');};
 $('search').addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase();document.querySelectorAll('#chatList .chat').forEach(x=>x.style.display=x.dataset.name.toLocaleLowerCase().includes(q)?'flex':'none');});
 sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){user=null;$('authGate').style.display='grid';$('appRoot').style.display='none';}});
