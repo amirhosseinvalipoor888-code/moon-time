@@ -158,7 +158,6 @@ private class MoonApi(context:Context) {
         if(created.length()==0) error("ساخت گفتگو ناموفق بود")
         val r=created.getJSONObject(0)
         val id=r.getString("id")
-        request("/rest/v1/conversation_members","POST",JSONObject().put("conversation_id",id).put("user_id",uid).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
         return Room(id,title,kind)
     }
     suspend fun lookupContact(emailTarget:String):MoonContact {
@@ -176,8 +175,7 @@ private class MoonApi(context:Context) {
         if(created.length()==0) error("ساخت گفتگوی خصوصی ناموفق بود")
         val room=created.getJSONObject(0)
         val id=room.getString("id")
-        val arr=JSONArray().put(JSONObject().put("conversation_id",id).put("user_id",uid)).put(JSONObject().put("conversation_id",id).put("user_id",target.getString("id")))
-        request("/rest/v1/conversation_members","POST",arr.toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+        request("/rest/v1/conversation_members","POST",JSONObject().put("conversation_id",id).put("user_id",target.getString("id")).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
         return Room(id,room.optString("title","گفتگوی خصوصی"),"direct")
     }
     suspend fun addMember(room:Room,emailTarget:String) {
