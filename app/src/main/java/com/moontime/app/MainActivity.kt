@@ -323,7 +323,7 @@ private fun MoonNativeApp() {
         when (value) { is Boolean -> editor.putBoolean(key, value); is String -> editor.putString(key, value); is Float -> editor.putFloat(key, value) }
         editor.apply()
     }
-    val accentColor = when (accentChoice) { "purple" -> Color(0xFF8B70D6); "green" -> Color(0xFF269B76); "orange" -> Color(0xFFE58A36); else -> Color(0xFF3390EC) }
+    val accentColor = when (accentChoice) { "purple" -> Color(0xFF8B70D6); "green" -> Color(0xFF269B76); "orange" -> Color(0xFFE58A36); else -> Violet }
     val chatWallpaper = when (wallpaperChoice) { "night" -> Color(0xFF17212B); "mint" -> Color(0xFFE5F4EA); "sand" -> Color(0xFFF5EBDD); "lavender" -> Color(0xFFECE8F8); else -> Color(0xFFE7EEF3) }
     var contactEmail by remember { mutableStateOf("") }
     var contacts by remember {
@@ -565,7 +565,7 @@ private fun MoonNativeApp() {
                 Column(Modifier.fillMaxSize().background(Night).statusBarsPadding()) {
                     Row(Modifier.fillMaxWidth().height(58.dp).background(Panel).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (showChat) showChat = false else dialog = "menu" }) {
-                            Icon(if (showChat) Icons.Default.ArrowBack else Icons.Default.Menu, null, tint = Color(0xFF3390EC))
+                            Icon(if (showChat) Icons.Default.ArrowBack else Icons.Default.Menu, null, tint = Violet)
                         }
                         if (showChat && current != null) {
                             Box(Modifier.size(40.dp).clip(CircleShape).background(Color(0xFF64A9D9)), contentAlignment = Alignment.Center) {
@@ -579,7 +579,7 @@ private fun MoonNativeApp() {
                             IconButton(onClick = { dialog = "profile" }) { Icon(Icons.Default.MoreVert, null, tint = Color(0xFF707579)) }
                         } else {
                             Text("Moon Time", color = Color(0xFF202124), fontWeight = FontWeight.Bold, fontSize = 19.sp, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.Edit, null, tint = Color(0xFF3390EC)) }
+                            IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.Edit, null, tint = Violet) }
                             IconButton(onClick = { dialog = "menu" }) { Icon(Icons.Default.MoreVert, null, tint = Color(0xFF707579)) }
                         }
                     }
@@ -614,7 +614,7 @@ private fun MoonNativeApp() {
                             }
                             if (visibleRooms.isEmpty()) item {
                                 Column(Modifier.fillMaxWidth().padding(36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("☾", fontSize = 42.sp, color = Color(0xFF3390EC))
+                                    Text("☾", fontSize = 42.sp, color = Violet)
                                     Text(if (searchQuery.isBlank()) "هنوز گفتگویی نداری" else "گفتگویی پیدا نشد", color = Color(0xFF202124), fontWeight = FontWeight.Bold)
                                     Text("برای شروع، گفتگوی جدید بساز.", color = Color(0xFF707579), fontSize = 12.sp)
                                     Button(onClick = { dialog = "direct" }, modifier = Modifier.padding(top = 12.dp)) { Text("گفتگوی جدید") }
@@ -627,8 +627,8 @@ private fun MoonNativeApp() {
                                     selectedTab = label
                                     when(label) { "تماس‌ها" -> dialog = "calls"; "تنظیمات" -> dialog = "settings" }
                                 }.padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(icon, null, tint = if(selectedTab == label) Color(0xFF3390EC) else Color(0xFF707579))
-                                    Text(label, color = if(selectedTab == label) Color(0xFF3390EC) else Color(0xFF707579), fontSize = 10.sp)
+                                    Icon(icon, null, tint = if(selectedTab == label) Violet else Color(0xFF707579))
+                                    Text(label, color = if(selectedTab == label) Violet else Color(0xFF707579), fontSize = 10.sp)
                                 }
                             }
                         }
@@ -665,7 +665,7 @@ private fun MoonNativeApp() {
                                         catch (_: Exception) { errorText = e.message ?: "ارسال ناموفق بود" }
                                     }
                                 }
-                            }) { Icon(Icons.Default.Send, null, tint = Color(0xFF3390EC)) }
+                            }) { Icon(Icons.Default.Send, null, tint = Violet) }
                         }
                     }
                     if (infoText.isNotBlank()) Text(infoText, color = Color(0xFF5288C1), fontSize = 10.sp, modifier = Modifier.padding(6.dp))
@@ -758,7 +758,7 @@ private fun MoonNativeApp() {
                                     }
                                 }
                                 Text("قلم نوشته", color = White)
-                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("sans" to "ساده","serif" to "سریف","mono" to "تک‌فاصله").forEach { (k,v)->FilterChip(selected=fontChoice==k,onClick={fontChoice=k;saveAsset("font",k)},label={Text(v)}) } }
+                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("sans" to "وزیرمتن","serif" to "سریف","mono" to "تک‌فاصله").forEach { (k,v)->FilterChip(selected=fontChoice==k,onClick={fontChoice=k;saveAsset("font",k)},label={Text(v)}) } }
                                 Text("اندازه نوشته: ${(fontScale*100).toInt()}٪",color=White)
                                 Slider(value=fontScale,onValueChange={fontScale=it;saveAsset("font_scale",it)},valueRange=0.85f..1.25f)
                                 Row(verticalAlignment=Alignment.CenterVertically) { Text("انیمیشن‌های رابط",Modifier.weight(1f),color=White);Switch(checked=motionEnabled,onCheckedChange={motionEnabled=it;saveAsset("motion",it)}) }
@@ -956,14 +956,14 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
             }
             if (m.text.isNotBlank()) {
                 if (m.text.trim() in setOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂")) {
-                    AnimatedEmoji(m.text.trim(), emojiMotionEnabled)
+                    AnimatedEmoji(m.text.trim(), emojiMotionEnabled && motionEnabled)
                 } else {
                     Text(m.text, color = White, fontSize = 14.sp)
                 }
             }
             Text(
                 if (m.pending) "در صف ارسال" else m.time.take(16).replace("T", " "),
-                color = if (m.pending) Color(0xFF3390EC) else Color(0xFF707579),
+                color = if (m.pending) Violet else Color(0xFF707579),
                 fontSize = 9.sp,
                 modifier = Modifier.align(Alignment.End)
             )
