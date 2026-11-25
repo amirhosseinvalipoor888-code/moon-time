@@ -637,7 +637,7 @@ private fun MoonNativeApp() {
                     "contacts" -> "مخاطبین من"
                     "menu" -> "منوی اصلی"
                     "settings" -> "تنظیمات Moon Time"
-                    else -> "Moon Time"
+                    else -> if (dialog.startsWith("feature:")) dialog.removePrefix("feature:") else "Moon Time"
                 }
                 AlertDialog(
                     onDismissRequest = { dialog = "" },
@@ -646,7 +646,21 @@ private fun MoonNativeApp() {
                     text = {
                         if (dialog == "menu") {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("مخاطبین" to "contacts", "گفتگوی خصوصی جدید" to "direct", "ساخت گروه" to "group", "ساخت کانال" to "channel", "تنظیمات" to "settings", "به‌روزرسانی گفتگوها" to "refresh").forEach { (label, action) ->
+                                listOf(
+                                    "گروه جدید" to "group",
+                                    "پیام جدید" to "direct",
+                                    "کانال جدید" to "channel",
+                                    "مخاطبین" to "contacts",
+                                    "تماس‌ها" to "feature:تماس‌ها",
+                                    "پیام‌های ذخیره‌شده" to "feature:پیام‌های ذخیره‌شده",
+                                    "پوشه‌های گفتگو" to "feature:پوشه‌ها",
+                                    "حالت شب" to "feature:حالت شب",
+                                    "تنظیمات" to "settings",
+                                    "راهنما و پشتیبانی" to "feature:راهنما و پشتیبانی",
+                                    "درباره Moon Time" to "feature:درباره برنامه",
+                                    "نسخه برنامه" to "feature:نسخه برنامه",
+                                    "به‌روزرسانی گفتگوها" to "refresh"
+                                ).forEach { (label, action) ->
                                     Text(label, color = Cyan, modifier = Modifier.fillMaxWidth().clickable {
                                         dialog = action
                                         if (action == "refresh") { dialog = ""; refreshRooms() }
@@ -654,11 +668,25 @@ private fun MoonNativeApp() {
                                 }
                             }
                         } else if (dialog == "settings") {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Column(
+                                modifier = Modifier.heightIn(max = 480.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
                                 Text("حساب فعال: ${api.email ?: "—"}", color = White)
                                 Text("شناسه حساب: ${api.userId ?: "—"}", color = Muted, fontSize = 11.sp)
-                                Text("برای تازه‌سازی فهرست گفتگوها، گزینه زیر را انتخاب کن.", color = Muted)
                                 Button(onClick = { dialog = ""; refreshRooms() }, modifier = Modifier.fillMaxWidth()) { Text("همگام‌سازی گفتگوها") }
+                                listOf(
+                                    "حساب کاربری", "حریم خصوصی و امنیت", "دستگاه‌های فعال",
+                                    "اعلان‌ها", "داده و حافظه", "ظاهر و پوسته",
+                                    "زبان برنامه", "پوشه‌های گفتگو", "پرسش‌های متداول",
+                                    "قوانین و حریم خصوصی", "گزارش مشکل و پیشنهاد"
+                                ).forEach { item ->
+                                    OutlinedButton(
+                                        onClick = { dialog = "feature:$item" },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(item) }
+                                }
+                                Text("این گزینه‌ها در رابط برنامه قرار گرفته‌اند؛ اتصال کامل بعضی بخش‌ها در به‌روزرسانی بعدی انجام می‌شود.", color = Muted, fontSize = 11.sp)
                                 Button(onClick = {
                                     dialog = ""
                                     api.logout()
@@ -666,6 +694,14 @@ private fun MoonNativeApp() {
                                     realtime = null
                                     logged = false
                                 }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83E55))) { Text("خروج از حساب") }
+                            }
+                        } else if (dialog.startsWith("feature:")) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(
+                                    "دکمه و صفحه این قابلیت در برنامه قرار دارد. اتصال عملیاتی و ذخیره‌سازی اختصاصی آن در به‌روزرسانی بعدی تکمیل می‌شود.",
+                                    color = Muted
+                                )
+                                Text("اطلاعات حساب و پیام‌ها روی سرور همگام می‌شوند؛ فایل برنامه و منابع رابط کاربری داخل APK قرار می‌گیرند.", color = Muted, fontSize = 11.sp)
                             }
                         } else if (dialog == "emoji") {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -809,7 +845,7 @@ private fun MessageBubble(m: Msg, loader: ImageLoader, onOpen: () -> Unit) {
             Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp))
                 .background(
                     if(m.mine)Brush.horizontalGradient(listOf(Color(0xFFEFFDDE),Color(0xFFEFFDDE)))
-elseBrush.horizontalGradient(listOf(Color.White,Color.White))
+else Brush.horizontalGradient(listOf(Color.White,Color.White))
                 )
                 .clickable { if (m.path != null) onOpen() }
                 .padding(12.dp)
