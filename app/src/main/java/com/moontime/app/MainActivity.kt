@@ -302,6 +302,22 @@ private fun MoonNativeApp() {
     var realtime by remember { mutableStateOf<Realtime?>(null) }
     var online by remember { mutableStateOf(false) }
     val mediaLoader = remember(context) { ImageLoader.Builder(context).components { if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory()) }.build() }
+    val assetPrefs = remember { context.getSharedPreferences("moon_offline_assets", Context.MODE_PRIVATE) }
+    var darkMode by remember { mutableStateOf(assetPrefs.getBoolean("dark_mode", false)) }
+    var wallpaperChoice by remember { mutableStateOf(assetPrefs.getString("wallpaper", "default") ?: "default") }
+    var fontChoice by remember { mutableStateOf(assetPrefs.getString("font", "sans") ?: "sans") }
+    var fontScale by remember { mutableFloatStateOf(assetPrefs.getFloat("font_scale", 1f)) }
+    var motionEnabled by remember { mutableStateOf(assetPrefs.getBoolean("motion", true)) }
+    var emojiMotionEnabled by remember { mutableStateOf(assetPrefs.getBoolean("emoji_motion", true)) }
+    var soundEnabled by remember { mutableStateOf(assetPrefs.getBoolean("sound", true)) }
+    var accentChoice by remember { mutableStateOf(assetPrefs.getString("accent", "blue") ?: "blue") }
+    fun saveAsset(key: String, value: Any) {
+        val editor = assetPrefs.edit()
+        when (value) { is Boolean -> editor.putBoolean(key, value); is String -> editor.putString(key, value); is Float -> editor.putFloat(key, value) }
+        editor.apply()
+    }
+    val accentColor = when (accentChoice) { "purple" -> Color(0xFF8B70D6); "green" -> Color(0xFF269B76); "orange" -> Color(0xFFE58A36); else -> Color(0xFF3390EC) }
+    val chatWallpaper = when (wallpaperChoice) { "night" -> Color(0xFF17212B); "mint" -> Color(0xFFE5F4EA); "sand" -> Color(0xFFF5EBDD); "lavender" -> Color(0xFFECE8F8); else -> Color(0xFFE7EEF3) }
     var contactEmail by remember { mutableStateOf("") }
     var contacts by remember {
         val saved = context.getSharedPreferences("moon_contacts", Context.MODE_PRIVATE).getString("items", "[]") ?: "[]"
@@ -588,7 +604,7 @@ private fun MoonNativeApp() {
                         }
                     } else if (current != null) {
                         LazyColumn(
-                            Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE7EEF3)),
+                            Modifier.weight(1f).fillMaxWidth().background(chatWallpaper),
                             contentPadding = PaddingValues(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -601,7 +617,7 @@ private fun MoonNativeApp() {
                                 })
                             }
                         }
-                        Row(Modifier.fillMaxWidth().background(Color(0xFFE7EEF3)).navigationBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().background(chatWallpaper).navigationBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { picker.launch("*/*") }) { Icon(Icons.Default.AttachFile, null, tint = Color(0xFF707579)) }
                             BasicTextField(
                                 input, { input = it },
@@ -637,6 +653,9 @@ private fun MoonNativeApp() {
                     "contacts" -> "مخاطبین من"
                     "menu" -> "منوی اصلی"
                     "settings" -> "تنظیمات Moon Time"
+                    "assets" -> "ظاهر و منابع آفلاین"
+                    "notifications" -> "اعلان‌ها و صدا"
+                    "offline" -> "راهنما و امکانات آفلاین"
                     else -> if (dialog.startsWith("feature:")) dialog.removePrefix("feature:") else "Moon Time"
                 }
                 AlertDialog(
@@ -654,9 +673,9 @@ private fun MoonNativeApp() {
                                     "تماس‌ها" to "feature:تماس‌ها",
                                     "پیام‌های ذخیره‌شده" to "feature:پیام‌های ذخیره‌شده",
                                     "پوشه‌های گفتگو" to "feature:پوشه‌ها",
-                                    "حالت شب" to "feature:حالت شب",
+                                    "حالت شب" to "toggle_dark",
                                     "تنظیمات" to "settings",
-                                    "راهنما و پشتیبانی" to "feature:راهنما و پشتیبانی",
+                                    "راهنما و پشتیبانی" to "offline",
                                     "درباره Moon Time" to "feature:درباره برنامه",
                                     "نسخه برنامه" to "feature:نسخه برنامه",
                                     "به‌روزرسانی گفتگوها" to "refresh"
@@ -695,6 +714,41 @@ private fun MoonNativeApp() {
                                     logged = false
                                 }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83E55))) { Text("خروج از حساب") }
                             }
+                        } else if (dialog == "assets") {
+                            Column(Modifier.heightIn(max = 500.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("این منابع و تنظیمات داخل برنامه هستند و روی همین گوشی ذخیره می‌شوند.", color = Muted, fontSize = 11.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) { Text("حالت شب", Modifier.weight(1f), color = White); Switch(checked = darkMode, onCheckedChange = { darkMode=it; saveAsset("dark_mode",it) }) }
+                                Text("رنگ برنامه", color = White)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { listOf("blue" to "آبی","purple" to "بنفش","green" to "سبز","orange" to "نارنجی").forEach { (k,v) -> FilterChip(selected=accentChoice==k,onClick={accentChoice=k;saveAsset("accent",k)},label={Text(v)}) } }
+                                Text("پس‌زمینه گفتگو", color = White)
+                                listOf("default" to "پیش‌فرض","night" to "شب","mint" to "نعنایی","sand" to "شنی","lavender" to "یاسی").forEach { (k,v) ->
+                                    Row(Modifier.fillMaxWidth().clickable { wallpaperChoice=k;saveAsset("wallpaper",k) }.padding(vertical=2.dp),verticalAlignment=Alignment.CenterVertically) {
+                                        Box(Modifier.size(20.dp).clip(CircleShape).background(when(k){"night"->Color(0xFF17212B);"mint"->Color(0xFFE5F4EA);"sand"->Color(0xFFF5EBDD);"lavender"->Color(0xFFECE8F8);else->Color(0xFFE7EEF3)}))
+                                        Spacer(Modifier.width(8.dp)); Text(v,color=White,modifier=Modifier.weight(1f)); RadioButton(selected=wallpaperChoice==k,onClick={wallpaperChoice=k;saveAsset("wallpaper",k)})
+                                    }
+                                }
+                                Text("قلم نوشته", color = White)
+                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("sans" to "ساده","serif" to "سریف","mono" to "تک‌فاصله").forEach { (k,v)->FilterChip(selected=fontChoice==k,onClick={fontChoice=k;saveAsset("font",k)},label={Text(v)}) } }
+                                Text("اندازه نوشته: ${(fontScale*100).toInt()}٪",color=White)
+                                Slider(value=fontScale,onValueChange={fontScale=it;saveAsset("font_scale",it)},valueRange=0.85f..1.25f)
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("انیمیشن‌های رابط",Modifier.weight(1f),color=White);Switch(checked=motionEnabled,onCheckedChange={motionEnabled=it;saveAsset("motion",it)}) }
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("ایموجی‌های متحرک",Modifier.weight(1f),color=White);Switch(checked=emojiMotionEnabled,onCheckedChange={emojiMotionEnabled=it;saveAsset("emoji_motion",it)}) }
+                                Text("آیکون‌ها از Material Icons موجود در APK استفاده می‌کنند و رنگ آن‌ها با رنگ انتخابی هماهنگ می‌شود.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "notifications") {
+                            Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("صدای اعلان",Modifier.weight(1f),color=White);Switch(checked=soundEnabled,onCheckedChange={soundEnabled=it;saveAsset("sound",it)}) }
+                                Button(onClick={try { val uri=android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION); android.media.RingtoneManager.getRingtone(context,uri)?.play() } catch (_:Exception) { errorText="پخش صدا ممکن نشد." }},modifier=Modifier.fillMaxWidth()) { Text("آزمایش صدای اعلان دستگاه") }
+                                Text("از صدای اعلان پیش‌فرض اندروید استفاده می‌شود؛ این انتخاب روی گوشی ذخیره می‌شود.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "offline") {
+                            Column(Modifier.heightIn(max=420.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Text("راهنمای آفلاین Moon Time",color=White,fontWeight=FontWeight.Bold)
+                                Text("• ظاهر، رنگ‌ها، قلم، اندازه نوشته و پس‌زمینه‌ها روی دستگاه ذخیره می‌شوند.\n\n• ایموجی‌ها و افکت‌های پایه بدون اینترنت اجرا می‌شوند.\n\n• راهنما و اطلاعات برنامه داخل APK هستند.\n\n• ورود، ارسال پیام، همگام‌سازی و دریافت فایل کاربران دیگر به اینترنت و سرور نیاز دارد.",color=White,fontSize=13.sp)
+                                Text("این بخش از متن داخلی برنامه استفاده می‌کند و آفلاین در دسترس است.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "toggle_dark") {
+                            Row(verticalAlignment=Alignment.CenterVertically) { Text("حالت شب",Modifier.weight(1f),color=White);Switch(checked=darkMode,onCheckedChange={darkMode=it;saveAsset("dark_mode",it)}) }
                         } else if (dialog.startsWith("feature:")) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text(
@@ -871,7 +925,7 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
             }
             if (m.text.isNotBlank()) {
                 if (m.text.trim() in setOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂")) {
-                    AnimatedEmoji(m.text.trim())
+                    AnimatedEmoji(m.text.trim(), emojiMotionEnabled)
                 } else {
                     Text(m.text, color = Color(0xFF202124), fontSize = 14.sp)
                 }
@@ -887,7 +941,8 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
 }
 
 @Composable
-private fun AnimatedEmoji(value: String) {
+private fun AnimatedEmoji(value: String, enabled: Boolean = true) {
+    if (!enabled) { Text(value, fontSize = 34.sp); return }
     val transition = rememberInfiniteTransition(label = "emoji-pulse")
     val scale by transition.animateFloat(
         initialValue = 0.88f,
