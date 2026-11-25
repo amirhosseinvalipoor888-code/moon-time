@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import coil.ImageLoader
@@ -469,7 +470,7 @@ private fun MoonNativeApp() {
         )
     ) {
         CompositionLocalProvider(
-            LocalDensity provides LocalDensity.current.copy(fontScale = fontScale),
+            LocalDensity provides Density(density = LocalDensity.current.density, fontScale = fontScale),
             LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = selectedFont)
         ) {
         Box(
@@ -639,7 +640,7 @@ private fun MoonNativeApp() {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(messages, key = { it.id }) { message ->
-                                MessageBubble(message, mediaLoader, onOpen = {
+                                MessageBubble(message, mediaLoader, emojiMotionEnabled && motionEnabled, onOpen = {
                                     if (message.path != null) scope.launch {
                                         try { val url = api.signed(message.path); context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                                         catch (e: Exception) { errorText = e.message ?: "باز کردن رسانه ناموفق بود" }
@@ -921,7 +922,7 @@ private fun Field(
 }
 
 @Composable
-private fun MessageBubble(m: Msg, loader: ImageLoader, onOpen: () -> Unit) {
+private fun MessageBubble(m: Msg, loader: ImageLoader, animateEmoji: Boolean = true, onOpen: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (m.mine) Arrangement.Start else Arrangement.End
@@ -956,7 +957,7 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
             }
             if (m.text.isNotBlank()) {
                 if (m.text.trim() in setOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂")) {
-                    AnimatedEmoji(m.text.trim(), emojiMotionEnabled && motionEnabled)
+                    AnimatedEmoji(m.text.trim(), animateEmoji)
                 } else {
                     Text(m.text, color = White, fontSize = 14.sp)
                 }
