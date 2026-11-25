@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -456,7 +457,7 @@ private fun MoonNativeApp() {
     val selectedFont = when (fontChoice) {
         "serif" -> FontFamily.Serif
         "mono" -> FontFamily.Monospace
-        else -> FontFamily.SansSerif
+        else -> FontFamily(Font(R.font.vazirmatn_regular, FontWeight.Normal))
     }
     MaterialTheme(
         colorScheme = if (darkMode) darkColorScheme(
