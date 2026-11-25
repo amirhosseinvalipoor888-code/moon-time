@@ -59,13 +59,13 @@ import java.util.UUID
 
 private const val API_URL = "https://krmuwbxjsjrezwnhybxa.supabase.co"
 private const val API_KEY = "sb_publishable_v-3Kw8OKJszThrMlQ1ojBQ_ixj1BbFk"
-private val Night = Color(0xFF090D1B)
-private val Panel = Color(0xFF141B30)
-private val Panel2 = Color(0xFF1B2540)
-private val Violet = Color(0xFF9B8CFF)
-private val Cyan = Color(0xFF64E6D5)
-private val White = Color(0xFFF4F5FF)
-private val Muted = Color(0xFF9BA8C8)
+private val Night = Color(0xFFFFFFFF)
+private val Panel = Color(0xFFFFFFFF)
+private val Panel2 = Color(0xFFF1F3F5)
+private val Violet = Color(0xFF3390EC)
+private val Cyan = Color(0xFF5288C1)
+private val White = Color(0xFF202124)
+private val Muted = Color(0xFF707579)
 private val http = OkHttpClient.Builder().connectTimeout(25, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).build()
 
 data class Room(val id:String,val title:String,val kind:String)
@@ -75,8 +75,8 @@ data class MoonContact(val id:String,val name:String,val email:String)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor=android.graphics.Color.rgb(9,13,27)
-        window.navigationBarColor=android.graphics.Color.rgb(9,13,27)
+        window.statusBarColor=android.graphics.Color.rgb(255,255,255)
+        window.navigationBarColor=android.graphics.Color.rgb(255,255,255)
         val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         val work = PeriodicWorkRequestBuilder<NotificationSyncWorker>(15, TimeUnit.MINUTES).setConstraints(constraints).build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork("moon-message-notifications", ExistingPeriodicWorkPolicy.KEEP, work)
@@ -425,7 +425,7 @@ private fun MoonNativeApp() {
     ) {
         Box(
             Modifier.fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0xFF171536), Night, Night)))
+                .background(Color.White)
         ) {
             if (!logged) {
                 Column(
@@ -604,7 +604,7 @@ private fun MoonNativeApp() {
                             }
                         }
                         Row(
-                            Modifier.fillMaxWidth().background(Color(0xFF10172A))
+                            Modifier.fillMaxWidth().background(Color(0xFFE7EEF3))
                                 .navigationBarsPadding().padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -834,8 +834,8 @@ private fun MessageBubble(m: Msg, loader: ImageLoader, onOpen: () -> Unit) {
         Column(
             Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp))
                 .background(
-                    if (m.mine) Brush.horizontalGradient(listOf(Color(0xFF6255C5), Color(0xFF5146A5)))
-                    else Brush.horizontalGradient(listOf(Panel2, Panel2))
+                    if(m.mine)Brush.horizontalGradient(listOf(Color(0xFFEFFDDE),Color(0xFFEFFDDE)))
+elseBrush.horizontalGradient(listOf(Color.White,Color.White))
                 )
                 .clickable { if (m.path != null) onOpen() }
                 .padding(12.dp)
@@ -863,12 +863,12 @@ private fun MessageBubble(m: Msg, loader: ImageLoader, onOpen: () -> Unit) {
                 if (m.text.trim() in setOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂")) {
                     AnimatedEmoji(m.text.trim())
                 } else {
-                    Text(m.text, color = White, fontSize = 14.sp)
+                    Text(m.text, color = Color(0xFF202124), fontSize = 14.sp)
                 }
             }
             Text(
                 if (m.pending) "در صف ارسال" else m.time.take(16).replace("T", " "),
-                color = if (m.pending) Cyan else Color(0xFFD2D0F5),
+                color = if (m.pending) Color(0xFF3390EC) else Color(0xFF707579),
                 fontSize = 9.sp,
                 modifier = Modifier.align(Alignment.End)
             )
