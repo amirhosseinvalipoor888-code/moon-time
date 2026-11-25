@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "themes": [
+    {
+      "id": "midnight",
+      "name": "Midnight",
+      "background": "#17212B",
+      "surface": "#242F3D",
+      "accent": "#3390EC"
+    },
+    {
+      "id": "lavender",
+      "name": "Lavender",
+      "background": "#F5F0FF",
+      "surface": "#FFFFFF",
+      "accent": "#8064C8"
+    },
+    {
+      "id": "mint",
+      "name": "Mint",
+      "background": "#EFFAF5",
+      "surface": "#FFFFFF",
+      "accent": "#269B78"
+    },
+    {
+      "id": "sunset",
+      "name": "Sunset",
+      "background": "#FFF4EC",
+      "surface": "#FFFFFF",
+      "accent": "#E78352"
+    }
+  ]
+}
