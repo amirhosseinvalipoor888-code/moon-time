@@ -327,6 +327,14 @@ private fun MoonNativeApp() {
     val accentColor = when (accentChoice) { "purple" -> Color(0xFF8B70D6); "green" -> Color(0xFF269B76); "orange" -> Color(0xFFE58A36); else -> Violet }
     val chatWallpaper = when (wallpaperChoice) { "night" -> Color(0xFF17212B); "mint" -> Color(0xFFE5F4EA); "sand" -> Color(0xFFF5EBDD); "lavender" -> Color(0xFFECE8F8); else -> Color(0xFFE7EEF3) }
     var contactEmail by remember { mutableStateOf("") }
+    val featurePrefs = remember { context.getSharedPreferences("moon_features", Context.MODE_PRIVATE) }
+    var readReceipts by remember { mutableStateOf(featurePrefs.getBoolean("read_receipts", true)) }
+    var onlineStatus by remember { mutableStateOf(featurePrefs.getBoolean("online_status", true)) }
+    var profileSearchable by remember { mutableStateOf(featurePrefs.getBoolean("profile_searchable", true)) }
+    var appLanguage by remember { mutableStateOf(featurePrefs.getString("language", "فارسی") ?: "فارسی") }
+    var folderNames by remember { mutableStateOf((featurePrefs.getString("folders", "[]") ?: "[]").let { raw -> try { val a=JSONArray(raw); (0 until a.length()).map { a.getString(it) } } catch (_:Exception) { emptyList<String>() } }) }
+    var newFolderName by remember { mutableStateOf("") }
+    var savedItems by remember { mutableStateOf((featurePrefs.getString("saved_items", "[]") ?: "[]").let { raw -> try { val a=JSONArray(raw); (0 until a.length()).map { a.getJSONObject(it).optString("text") } } catch (_:Exception) { emptyList<String>() } }) }
     var contacts by remember {
         val saved = context.getSharedPreferences("moon_contacts", Context.MODE_PRIVATE).getString("items", "[]") ?: "[]"
         val loaded: List<MoonContact> = try {
@@ -736,7 +744,7 @@ private fun MoonNativeApp() {
                                         modifier = Modifier.fillMaxWidth()
                                     ) { Text(item) }
                                 }
-                                Text("این گزینه‌ها در رابط برنامه قرار گرفته‌اند؛ اتصال کامل بعضی بخش‌ها در به‌روزرسانی بعدی انجام می‌شود.", color = Muted, fontSize = 11.sp)
+                                Text("تنظیمات محلی روی همین دستگاه ذخیره می‌شوند. قابلیت‌های وابسته به سرور فقط در صورت پشتیبانی backend فعال‌اند.", color = Muted, fontSize = 11.sp)
                                 Button(onClick = {
                                     dialog = ""
                                     api.logout()
@@ -780,13 +788,96 @@ private fun MoonNativeApp() {
                             }
                         } else if (dialog == "toggle_dark") {
                             Row(verticalAlignment=Alignment.CenterVertically) { Text("حالت شب",Modifier.weight(1f),color=White);Switch(checked=darkMode,onCheckedChange={darkMode=it;saveAsset("dark_mode",it)}) }
-                        } else if (dialog.startsWith("feature:")) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    "دکمه و صفحه این قابلیت در برنامه قرار دارد. اتصال عملیاتی و ذخیره‌سازی اختصاصی آن در به‌روزرسانی بعدی تکمیل می‌شود.",
-                                    color = Muted
-                                )
-                                Text("اطلاعات حساب و پیام‌ها روی سرور همگام می‌شوند؛ فایل برنامه و منابع رابط کاربری داخل APK قرار می‌گیرند.", color = Muted, fontSize = 11.sp)
+                        } else if (dialog == "feature:حساب کاربری") {
+                            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                Text("ایمیل: ${api.email ?: "—"}", color=White)
+                                Text("نام نمایشی: ${api.displayName ?: "ثبت نشده"}", color=White)
+                                Text("شناسه حساب: ${api.userId ?: "—"}", color=Muted, fontSize=11.sp)
+                                Text("ویرایش نام و عکس پروفایل هنوز به جدول ویرایش پروفایل متصل نیست؛ این صفحه اطلاعات واقعی حساب فعلی را نشان می‌دهد.", color=Muted, fontSize=11.sp)
+                            }
+                        } else if (dialog == "feature:حریم خصوصی و امنیت") {
+                            Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("نمایش وضعیت آنلاین در برنامه",Modifier.weight(1f),color=White); Switch(onlineStatus,{ onlineStatus=it; featurePrefs.edit().putBoolean("online_status",it).apply() }) }
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("قابل جست‌وجو بودن پروفایل",Modifier.weight(1f),color=White); Switch(profileSearchable,{ profileSearchable=it; featurePrefs.edit().putBoolean("profile_searchable",it).apply() }) }
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("رسید خواندن پیام‌ها (تنظیم محلی)",Modifier.weight(1f),color=White); Switch(readReceipts,{ readReceipts=it; featurePrefs.edit().putBoolean("read_receipts",it).apply() }) }
+                                Text("این سه گزینه فعلاً فقط ترجیح محلی را ذخیره می‌کنند و هنوز سیاست دسترسی یا وضعیت آنلاین سرور را تغییر نمی‌دهند.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "feature:دستگاه‌های فعال") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("این دستگاه",color=White,fontWeight=FontWeight.Bold)
+                                Text("Android • ${Build.MODEL}",color=White)
+                                Text("نشست فعلی حساب Moon Time",color=Muted,fontSize=11.sp)
+                                Text("فهرست و لغو نشست‌های دیگر هنوز در backend پیاده‌سازی نشده است؛ این صفحه عمداً ادعای نمایش دستگاه‌های دیگر را نمی‌کند.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "feature:داده و حافظه") {
+                            val cacheBytes = remember { context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
+                            Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Text("حافظه موقت برنامه: ${android.text.format.Formatter.formatShortFileSize(context,cacheBytes)}",color=White)
+                                Text("پاک‌سازی فقط فایل‌های موقت (cache) را حذف می‌کند؛ نشست ورود، مخاطبین و پیام‌های ذخیره‌شده دست‌نخورده می‌مانند.",color=Muted,fontSize=11.sp)
+                                OutlinedButton(onClick={ context.cacheDir.deleteRecursively(); context.cacheDir.mkdirs(); infoText="حافظه موقت پاک شد."; dialog="" },modifier=Modifier.fillMaxWidth()) { Text("پاک‌سازی حافظه موقت") }
+                            }
+                        } else if (dialog == "feature:زبان برنامه") {
+                            Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                listOf("فارسی","English","العربية","Türkçe","Русский","Deutsch").forEach { lang ->
+                                    Row(Modifier.fillMaxWidth().clickable { appLanguage=lang; featurePrefs.edit().putString("language",lang).apply(); infoText="زبان انتخابی ذخیره شد؛ ترجمه کامل صفحات در نسخه بعدی تکمیل می‌شود." }.padding(vertical=7.dp),verticalAlignment=Alignment.CenterVertically) {
+                                        Text(lang,Modifier.weight(1f),color=White)
+                                        RadioButton(selected=appLanguage==lang,onClick={appLanguage=lang;featurePrefs.edit().putString("language",lang).apply();infoText="زبان انتخابی ذخیره شد؛ ترجمه کامل صفحات در نسخه بعدی تکمیل می‌شود."})
+                                    }
+                                }
+                                Text("انتخاب زبان ذخیره می‌شود؛ ترجمه همه متن‌های برنامه هنوز کامل نیست.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "feature:پوشه‌های گفتگو" || dialog == "feature:پوشه‌ها") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Field(newFolderName,{newFolderName=it},"نام پوشه جدید")
+                                Button(enabled=newFolderName.trim().length>=2,onClick={
+                                    val clean=newFolderName.trim().take(30)
+                                    if(clean !in folderNames){folderNames=folderNames+clean;featurePrefs.edit().putString("folders",JSONArray(folderNames).toString()).apply()}
+                                    newFolderName=""
+                                },modifier=Modifier.fillMaxWidth()) { Text("ساخت پوشه") }
+                                if(folderNames.isEmpty()) Text("هنوز پوشه‌ای نساخته‌ای.",color=Muted)
+                                folderNames.forEach { folder -> Row(verticalAlignment=Alignment.CenterVertically) { Text(folder,Modifier.weight(1f),color=White); TextButton(onClick={folderNames=folderNames-folder;featurePrefs.edit().putString("folders",JSONArray(folderNames).toString()).apply()}){Text("حذف")} } }
+                                Text("پوشه‌ها فعلاً روی همین دستگاه ذخیره می‌شوند و هنوز فیلتر/دسته‌بندی خودکار گفتگوها به آن‌ها متصل نیست.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "feature:پیام‌های ذخیره‌شده") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("برای ذخیره پیام، متن آن را در کادر زیر وارد کن. موارد فقط روی همین دستگاه نگهداری می‌شوند.",color=Muted,fontSize=11.sp)
+                                Field(dialogValue,{dialogValue=it},"متن پیام برای ذخیره")
+                                Button(enabled=dialogValue.isNotBlank(),onClick={
+                                    savedItems=savedItems+dialogValue.trim()
+                                    featurePrefs.edit().putString("saved_items",JSONArray(savedItems).put(dialogValue.trim()).toString()).apply()
+                                    dialogValue=""
+                                    infoText="پیام در ذخیره‌شده‌های محلی ثبت شد."
+                                },modifier=Modifier.fillMaxWidth()){Text("ذخیره پیام")}
+                                if(savedItems.isEmpty()) Text("هنوز پیامی ذخیره نشده.",color=Muted)
+                                savedItems.forEachIndexed { index,item -> Row(verticalAlignment=Alignment.CenterVertically) { Text(item,Modifier.weight(1f),color=White,fontSize=13.sp); TextButton(onClick={savedItems=savedItems.toMutableList().also{it.removeAt(index)};featurePrefs.edit().putString("saved_items",JSONArray().also{a->savedItems.forEach{v->a.put(v)}}.toString()).apply()}){Text("حذف")} } }
+                            }
+                        } else if (dialog == "feature:پرسش‌های متداول") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("چطور گفتگو بسازم؟ از منوی اصلی «پیام جدید»، «گروه جدید» یا «کانال جدید» را انتخاب کن.",color=White)
+                                Text("چطور فایل بفرستم؟ داخل گفتگو دکمه پیوست را بزن و فایل را انتخاب کن؛ ارسال به اینترنت نیاز دارد.",color=White)
+                                Text("چرا اعلان فوری نیست؟ همگام‌سازی پس‌زمینه اندروید ممکن است با محدودیت باتری تأخیر داشته باشد.",color=White)
+                                Text("چطور ظاهر را عوض کنم؟ از تنظیمات، بخش ظاهر و پوسته را باز کن.",color=White)
+                            }
+                        } else if (dialog == "feature:قوانین و حریم خصوصی") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("از ارسال اطلاعات شخصی دیگران بدون اجازه خودداری کن.",color=White)
+                                Text("پیام‌ها و فایل‌های ارسالی برای همگام‌سازی روی زیرساخت سرور ذخیره می‌شوند؛ این نسخه رمزنگاری سرتاسری را ارائه نمی‌کند.",color=White)
+                                Text("از رمز عبور قوی و منحصربه‌فرد استفاده کن و آن را با دیگران به اشتراک نگذار.",color=White)
+                            }
+                        } else if (dialog == "feature:گزارش مشکل و پیشنهاد") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Field(dialogValue,{dialogValue=it},"شرح مشکل یا پیشنهاد")
+                                Button(enabled=dialogValue.isNotBlank(),onClick={
+                                    val intent=Intent(Intent.ACTION_SENDTO,Uri.parse("mailto:")).putExtra(Intent.EXTRA_SUBJECT,"Moon Time - گزارش مشکل").putExtra(Intent.EXTRA_TEXT,dialogValue)
+                                    try { context.startActivity(intent); dialog="" } catch (_:Exception) { errorText="برنامه ایمیل روی دستگاه پیدا نشد." }
+                                },modifier=Modifier.fillMaxWidth()){Text("ارسال با برنامه ایمیل")}
+                                Text("گزارش از طریق برنامه ایمیل دستگاه ارسال می‌شود؛ سرور Moon Time هنوز سامانه ثبت تیکت ندارد.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "feature:درباره برنامه" || dialog == "feature:نسخه برنامه") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("Moon Time",color=White,fontWeight=FontWeight.Bold)
+                                Text("نسخه ${BuildConfig.VERSION_NAME} • کد ${BuildConfig.VERSION_CODE}",color=White)
+                                Text("پیام‌رسان آزمایشی؛ برخی قابلیت‌های پیشرفته هنوز در حال توسعه‌اند.",color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "emoji") {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
