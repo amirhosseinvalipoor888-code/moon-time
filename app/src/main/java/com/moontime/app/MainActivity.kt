@@ -292,6 +292,9 @@ private fun MoonNativeApp() {
     var infoText by remember { mutableStateOf("") }
     var rooms by remember { mutableStateOf(emptyList<Room>()) }
     var current by remember { mutableStateOf<Room?>(null) }
+    var showChat by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableStateOf("چت‌ها") }
     var messages by remember { mutableStateOf(emptyList<Msg>()) }
     var input by remember { mutableStateOf("") }
     var dialog by remember { mutableStateOf("") }
@@ -513,143 +516,114 @@ private fun MoonNativeApp() {
                     }
                 }
             } else {
-                Column(Modifier.fillMaxSize().statusBarsPadding()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("☾", fontSize = 34.sp, color = Violet)
-                        Spacer(Modifier.width(9.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("MOON TIME", color = White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                            Text(if (online) "متصل به گفتگو" else "آماده اتصال", color = Muted, fontSize = 10.sp)
+                Column(Modifier.fillMaxSize().background(Color.White).statusBarsPadding()) {
+                    Row(Modifier.fillMaxWidth().height(58.dp).background(Color.White).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { if (showChat) showChat = false else dialog = "menu" }) {
+                            Icon(if (showChat) Icons.Default.ArrowBack else Icons.Default.Menu, null, tint = Color(0xFF3390EC))
                         }
-                        IconButton(onClick = { dialog = "menu" }) { Icon(Icons.Default.MoreVert, null, tint = White) }
-                        IconButton(onClick = { dialog = "contacts" }) { Icon(Icons.Default.Contacts, null, tint = White) }
-                        IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.PersonAdd, null, tint = White) }
-                        IconButton(onClick = { dialog = "group" }) { Icon(Icons.Default.GroupAdd, null, tint = White) }
-                        IconButton(onClick = { dialog = "channel" }) { Icon(Icons.Default.Campaign, null, tint = White) }
-                        if (current != null && current!!.kind != "direct") {
-                            IconButton(onClick = { dialog = "new" }) { Icon(Icons.Default.PersonAddAlt, null, tint = White) }
+                        if (showChat && current != null) {
+                            Box(Modifier.size(40.dp).clip(CircleShape).background(Color(0xFF64A9D9)), contentAlignment = Alignment.Center) {
+                                Text(current!!.title.take(1), color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(current!!.title, color = Color(0xFF202124), fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 1)
+                                Text(if (online) "آنلاین" else "آخرین بازدید", color = Color(0xFF707579), fontSize = 11.sp)
+                            }
+                            IconButton(onClick = { dialog = "profile" }) { Icon(Icons.Default.MoreVert, null, tint = Color(0xFF707579)) }
+                        } else {
+                            Text("Moon Time", color = Color(0xFF202124), fontWeight = FontWeight.Bold, fontSize = 19.sp, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { dialog = "direct" }) { Icon(Icons.Default.Edit, null, tint = Color(0xFF3390EC)) }
+                            IconButton(onClick = { dialog = "menu" }) { Icon(Icons.Default.MoreVert, null, tint = Color(0xFF707579)) }
                         }
-                        IconButton(onClick = {
-                            api.logout()
-                            realtime?.close()
-                            logged = false
-                        }) { Icon(Icons.Default.Logout, null, tint = White) }
                     }
-
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        FilterChip(
-                            selected = current == null,
-                            onClick = {
-                                current = null
-                                messages = emptyList()
-                                realtime?.close()
-                                online = false
-                            },
-                            label = { Text("همه") }
+                    if (!showChat) {
+                        BasicTextField(
+                            searchQuery, { searchQuery = it },
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(22.dp)).background(Color(0xFFF1F3F5)).padding(horizontal = 16.dp, vertical = 12.dp),
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF202124), fontSize = 14.sp),
+                            decorationBox = { inner -> if (searchQuery.isEmpty()) Text("⌕  جستجو", color = Color(0xFF707579)); inner() }
                         )
-                        rooms.forEach { room ->
-                            FilterChip(
-                                selected = current?.id == room.id,
-                                onClick = {
-                                    current = room
-                                    connectRoom(room)
-                                },
-                                label = { Text(room.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                            )
-                        }
-                        IconButton(onClick = { refreshRooms() }) {
-                            Icon(Icons.Default.Refresh, null, tint = White)
-                        }
-                    }
-
-                    if (current == null) {
-                        Column(
-                            Modifier.weight(1f).fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text("🌙", fontSize = 52.sp)
-                            Text("هنوز گفتگویی نداری", color = White, fontWeight = FontWeight.Bold)
-                            Text("از دکمه‌های بالا برای شروع گفتگو استفاده کن.", color = Muted)
-                            Button(onClick = { dialog = "channel" }, modifier = Modifier.padding(top = 12.dp)) {
-                                Text("ساخت کانال")
+                        val visibleRooms = rooms.filter { it.title.contains(searchQuery, ignoreCase = true) }
+                            .filter { selectedTab != "گروه‌ها" || it.kind == "group" }
+                        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+                            items(visibleRooms, key = { it.id }) { room ->
+                                Row(
+                                    Modifier.fillMaxWidth().clickable { current = room; showChat = true; connectRoom(room) }
+                                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(Modifier.size(52.dp).clip(CircleShape).background(Color(0xFF64A9D9)), contentAlignment = Alignment.Center) {
+                                        Text(room.title.take(1).uppercase(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(room.title, color = Color(0xFF202124), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
+                                        Text(when(room.kind) { "group" -> "گروه"; "channel" -> "کانال"; else -> "گفتگوی خصوصی" }, color = Color(0xFF707579), fontSize = 12.sp)
+                                    }
+                                }
+                                HorizontalDivider(color = Color(0xFFF0F1F2), thickness = 0.7.dp)
+                            }
+                            if (visibleRooms.isEmpty()) item {
+                                Column(Modifier.fillMaxWidth().padding(36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("☾", fontSize = 42.sp, color = Color(0xFF3390EC))
+                                    Text(if (searchQuery.isBlank()) "هنوز گفتگویی نداری" else "گفتگویی پیدا نشد", color = Color(0xFF202124), fontWeight = FontWeight.Bold)
+                                    Text("برای شروع، گفتگوی جدید بساز.", color = Color(0xFF707579), fontSize = 12.sp)
+                                    Button(onClick = { dialog = "direct" }, modifier = Modifier.padding(top = 12.dp)) { Text("گفتگوی جدید") }
+                                }
                             }
                         }
-                    } else {
-                        Text(current!!.title, color = White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        Row(Modifier.fillMaxWidth().background(Color.White).navigationBarsPadding().padding(vertical = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            listOf("چت‌ها" to Icons.Default.Chat, "گروه‌ها" to Icons.Default.Group, "تماس‌ها" to Icons.Default.Call, "تنظیمات" to Icons.Default.Settings).forEach { (label, icon) ->
+                                Column(Modifier.weight(1f).clickable {
+                                    selectedTab = label
+                                    when(label) { "تماس‌ها" -> dialog = "calls"; "تنظیمات" -> dialog = "settings" }
+                                }.padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(icon, null, tint = if(selectedTab == label) Color(0xFF3390EC) else Color(0xFF707579))
+                                    Text(label, color = if(selectedTab == label) Color(0xFF3390EC) else Color(0xFF707579), fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    } else if (current != null) {
                         LazyColumn(
-                            Modifier.weight(1f).fillMaxWidth(),
-                            contentPadding = PaddingValues(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(9.dp)
+                            Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE7EEF3)),
+                            contentPadding = PaddingValues(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(messages, key = { it.id }) { message ->
                                 MessageBubble(message, mediaLoader, onOpen = {
-                                    if (message.path != null) {
-                                        scope.launch {
-                                            try {
-                                                val mediaUrl = api.signed(message.path)
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(mediaUrl)))
-                                            } catch (e: Exception) {
-                                                errorText = e.message ?: "باز کردن رسانه ناموفق بود"
-                                            }
-                                        }
+                                    if (message.path != null) scope.launch {
+                                        try { val url = api.signed(message.path); context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                        catch (e: Exception) { errorText = e.message ?: "باز کردن رسانه ناموفق بود" }
                                     }
                                 })
                             }
                         }
-                        Row(
-                            Modifier.fillMaxWidth().background(Color(0xFFE7EEF3))
-                                .navigationBarsPadding().padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = { picker.launch("*/*") }) {
-                                Icon(Icons.Default.AttachFile, null, tint = Muted)
-                            }
+                        Row(Modifier.fillMaxWidth().background(Color(0xFFE7EEF3)).navigationBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { picker.launch("*/*") }) { Icon(Icons.Default.AttachFile, null, tint = Color(0xFF707579)) }
                             BasicTextField(
-                                input,
-                                { input = it },
-                                Modifier.weight(1f).clip(RoundedCornerShape(15.dp))
-                                    .background(Panel).padding(13.dp),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = White, fontSize = 14.sp),
-                                decorationBox = { inner ->
-                                    if (input.isEmpty()) Text("پیامت را بنویس…", color = Muted)
-                                    inner()
-                                }
+                                input, { input = it },
+                                Modifier.weight(1f).clip(RoundedCornerShape(22.dp)).background(Color.White).padding(horizontal = 15.dp, vertical = 13.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF202124), fontSize = 14.sp),
+                                decorationBox = { inner -> if (input.isEmpty()) Text("پیام...", color = Color(0xFF707579)); inner() }
                             )
-                            IconButton(onClick = { dialog = "emoji" }) { Text("✨", fontSize = 23.sp) }
+                            IconButton(onClick = { dialog = "emoji" }) { Text("😊", fontSize = 22.sp) }
                             IconButton(onClick = {
-                                val room = current
-                                val value = input.trim()
-                                if (room != null && value.isNotEmpty()) {
-                                    scope.launch {
-                                        try {
-                                            val sent = api.send(room, value)
-                                            messages = messages + sent
-                                            input = ""
-                                        } catch (e: Exception) {
-                                            try {
-                                                val queued = api.queueText(room,value)
-                                                messages = messages + queued
-                                                input = ""
-                                                infoText = "پیام ذخیره شد و با اتصال اینترنت ارسال می‌شود."
-                                            } catch (_:Exception) { errorText = e.message ?: "ارسال ناموفق بود" }
-                                        }
+                                val room = current; val value = input.trim()
+                                if (room != null && value.isNotEmpty()) scope.launch {
+                                    try { val sent = api.send(room, value); messages = messages + sent; input = "" }
+                                    catch (e: Exception) {
+                                        try { val queued = api.queueText(room, value); messages = messages + queued; input = ""; infoText = "پیام در صف ارسال قرار گرفت." }
+                                        catch (_: Exception) { errorText = e.message ?: "ارسال ناموفق بود" }
                                     }
                                 }
-                            }) {
-                                Icon(Icons.Default.Send, null, tint = Violet)
-                            }
+                            }) { Icon(Icons.Default.Send, null, tint = Color(0xFF3390EC)) }
                         }
                     }
-
-                    if (infoText.isNotBlank()) Text(infoText, color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(8.dp))
-                    if (errorText.isNotBlank()) Text(errorText, color = Color(0xFFFF9BAF), fontSize = 10.sp, modifier = Modifier.padding(8.dp))
+                    if (infoText.isNotBlank()) Text(infoText, color = Color(0xFF5288C1), fontSize = 10.sp, modifier = Modifier.padding(6.dp))
+                    if (errorText.isNotBlank()) Text(errorText, color = Color(0xFFD95365), fontSize = 10.sp, modifier = Modifier.padding(6.dp))
                 }
             }
 
