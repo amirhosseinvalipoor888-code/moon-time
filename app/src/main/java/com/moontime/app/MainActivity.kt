@@ -1,6 +1,7 @@
 package com.moontime.app
 
 import android.content.Context
+import android.media.MediaPlayer
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -21,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,7 +33,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,13 +63,15 @@ import java.util.UUID
 
 private const val API_URL = "https://krmuwbxjsjrezwnhybxa.supabase.co"
 private const val API_KEY = "sb_publishable_v-3Kw8OKJszThrMlQ1ojBQ_ixj1BbFk"
-private val Night = Color(0xFFFFFFFF)
-private val Panel = Color(0xFFFFFFFF)
-private val Panel2 = Color(0xFFF1F3F5)
-private val Violet = Color(0xFF3390EC)
-private val Cyan = Color(0xFF5288C1)
-private val White = Color(0xFF202124)
-private val Muted = Color(0xFF707579)
+private var activeDarkTheme by mutableStateOf(false)
+private var activeAccent by mutableStateOf(Color(0xFF3390EC))
+private val Night: Color get() = if (activeDarkTheme) Color(0xFF17212B) else Color(0xFFFFFFFF)
+private val Panel: Color get() = if (activeDarkTheme) Color(0xFF242F3D) else Color(0xFFFFFFFF)
+private val Panel2: Color get() = if (activeDarkTheme) Color(0xFF1E2A36) else Color(0xFFF1F3F5)
+private val Violet: Color get() = activeAccent
+private val Cyan: Color get() = if (activeDarkTheme) Color(0xFF7DB7F0) else Color(0xFF5288C1)
+private val White: Color get() = if (activeDarkTheme) Color(0xFFF4F7FA) else Color(0xFF202124)
+private val Muted: Color get() = if (activeDarkTheme) Color(0xFF9AA9B8) else Color(0xFF707579)
 private val http = OkHttpClient.Builder().connectTimeout(25, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).build()
 
 data class Room(val id:String,val title:String,val kind:String)
@@ -436,15 +442,38 @@ private fun MoonNativeApp() {
         }
     }
 
+    SideEffect {
+        activeDarkTheme = darkMode
+        activeAccent = accentColor
+        (context as? android.app.Activity)?.window?.apply {
+            statusBarColor = if (darkMode) android.graphics.Color.rgb(23,33,43) else android.graphics.Color.WHITE
+            navigationBarColor = if (darkMode) android.graphics.Color.rgb(23,33,43) else android.graphics.Color.WHITE
+            if (Build.VERSION.SDK_INT >= 26) {
+                decorView.systemUiVisibility = if (darkMode) 0 else android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
+        }
+    }
+    val selectedFont = when (fontChoice) {
+        "serif" -> FontFamily.Serif
+        "mono" -> FontFamily.Monospace
+        else -> FontFamily.SansSerif
+    }
     MaterialTheme(
-        colorScheme = darkColorScheme(
+        colorScheme = if (darkMode) darkColorScheme(
             primary = Violet, secondary = Cyan, background = Night,
-            surface = Panel, onPrimary = White, onBackground = White, onSurface = White
+            surface = Panel, onPrimary = Color.White, onBackground = White, onSurface = White
+        ) else lightColorScheme(
+            primary = Violet, secondary = Cyan, background = Night,
+            surface = Panel, onPrimary = Color.White, onBackground = White, onSurface = White
         )
     ) {
+        CompositionLocalProvider(
+            LocalDensity provides LocalDensity.current.copy(fontScale = fontScale),
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = selectedFont)
+        ) {
         Box(
             Modifier.fillMaxSize()
-                .background(Color.White)
+                .background(Night)
         ) {
             if (!logged) {
                 Column(
@@ -532,8 +561,8 @@ private fun MoonNativeApp() {
                     }
                 }
             } else {
-                Column(Modifier.fillMaxSize().background(Color.White).statusBarsPadding()) {
-                    Row(Modifier.fillMaxWidth().height(58.dp).background(Color.White).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.fillMaxSize().background(Night).statusBarsPadding()) {
+                    Row(Modifier.fillMaxWidth().height(58.dp).background(Panel).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (showChat) showChat = false else dialog = "menu" }) {
                             Icon(if (showChat) Icons.Default.ArrowBack else Icons.Default.Menu, null, tint = Color(0xFF3390EC))
                         }
@@ -591,7 +620,7 @@ private fun MoonNativeApp() {
                                 }
                             }
                         }
-                        Row(Modifier.fillMaxWidth().background(Color.White).navigationBarsPadding().padding(vertical = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        Row(Modifier.fillMaxWidth().background(Panel).navigationBarsPadding().padding(vertical = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                             listOf("چت‌ها" to Icons.Default.Chat, "گروه‌ها" to Icons.Default.Group, "تماس‌ها" to Icons.Default.Call, "تنظیمات" to Icons.Default.Settings).forEach { (label, icon) ->
                                 Column(Modifier.weight(1f).clickable {
                                     selectedTab = label
@@ -604,7 +633,7 @@ private fun MoonNativeApp() {
                         }
                     } else if (current != null) {
                         LazyColumn(
-                            Modifier.weight(1f).fillMaxWidth().background(chatWallpaper),
+                            Modifier.weight(1f).fillMaxWidth().background(if (darkMode && wallpaperChoice == "default") Panel2 else chatWallpaper),
                             contentPadding = PaddingValues(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -621,7 +650,7 @@ private fun MoonNativeApp() {
                             IconButton(onClick = { picker.launch("*/*") }) { Icon(Icons.Default.AttachFile, null, tint = Color(0xFF707579)) }
                             BasicTextField(
                                 input, { input = it },
-                                Modifier.weight(1f).clip(RoundedCornerShape(22.dp)).background(Color.White).padding(horizontal = 15.dp, vertical = 13.dp),
+                                Modifier.weight(1f).clip(RoundedCornerShape(22.dp)).background(Panel).padding(horizontal = 15.dp, vertical = 13.dp),
                                 textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF202124), fontSize = 14.sp),
                                 decorationBox = { inner -> if (input.isEmpty()) Text("پیام...", color = Color(0xFF707579)); inner() }
                             )
@@ -738,8 +767,8 @@ private fun MoonNativeApp() {
                         } else if (dialog == "notifications") {
                             Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                 Row(verticalAlignment=Alignment.CenterVertically) { Text("صدای اعلان",Modifier.weight(1f),color=White);Switch(checked=soundEnabled,onCheckedChange={soundEnabled=it;saveAsset("sound",it)}) }
-                                Button(onClick={try { val uri=android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION); android.media.RingtoneManager.getRingtone(context,uri)?.play() } catch (_:Exception) { errorText="پخش صدا ممکن نشد." }},modifier=Modifier.fillMaxWidth()) { Text("آزمایش صدای اعلان دستگاه") }
-                                Text("از صدای اعلان پیش‌فرض اندروید استفاده می‌شود؛ این انتخاب روی گوشی ذخیره می‌شود.",color=Muted,fontSize=11.sp)
+                                Button(onClick={try { if (soundEnabled) MediaPlayer.create(context, R.raw.moon_notification)?.apply { setOnCompletionListener { it.release() }; start() } else infoText = "صدای اعلان خاموش است." } catch (_:Exception) { errorText="پخش صدای داخلی ناموفق بود." }},modifier=Modifier.fillMaxWidth()) { Text("آزمایش صدای اعلان داخلی") }
+                                Text("فایل صدای اعلان همراه APK نصب می‌شود؛ انتخاب روشن/خاموش در تنظیمات اعلان اندروید نیز اعمال می‌شود.",color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "offline") {
                             Column(Modifier.heightIn(max=420.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -863,6 +892,7 @@ private fun MoonNativeApp() {
                 )
             }
         }
+        }
     }
 }
 
@@ -927,7 +957,7 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
                 if (m.text.trim() in setOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂")) {
                     AnimatedEmoji(m.text.trim(), emojiMotionEnabled)
                 } else {
-                    Text(m.text, color = Color(0xFF202124), fontSize = 14.sp)
+                    Text(m.text, color = White, fontSize = 14.sp)
                 }
             }
             Text(
