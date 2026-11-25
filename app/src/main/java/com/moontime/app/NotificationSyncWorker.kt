@@ -3,6 +3,8 @@ package com.moontime.app
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.media.AudioAttributes
+import android.net.Uri
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -82,7 +84,9 @@ class NotificationSyncWorker(context: Context, params: WorkerParameters) : Corou
             val rows = JSONArray(response.body?.string().orEmpty())
             response.close()
             if (rows.length() > 0) {
-                ensureChannel()
+                val soundOn = applicationContext.getSharedPreferences("moon_offline_assets", Context.MODE_PRIVATE).getBoolean("sound", true)
+                val channelId = if (soundOn) "moon_messages_sound_on" else "moon_messages_sound_off"
+                ensureChannel(soundOn, channelId)
                 for (i in 0 until rows.length()) {
                     val row = rows.getJSONObject(i)
                     val preview = row.optString("body").ifBlank { "رسانه جدید دریافت شد" }.take(100)
@@ -91,7 +95,7 @@ class NotificationSyncWorker(context: Context, params: WorkerParameters) : Corou
                     }
                     val pending = PendingIntent.getActivity(applicationContext, row.optString("id").hashCode(), intent,
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                    val notification = NotificationCompat.Builder(applicationContext, "moon_messages")
+                    val notification = NotificationCompat.Builder(applicationContext, channelId)
                         .setSmallIcon(android.R.drawable.ic_dialog_email)
                         .setContentTitle("پیام جدید در Moon Time")
                         .setContentText(preview)
@@ -130,10 +134,16 @@ class NotificationSyncWorker(context: Context, params: WorkerParameters) : Corou
         return token
     }
 
-    private fun ensureChannel() {
+    private fun ensureChannel(soundOn: Boolean, channelId: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(NotificationChannel("moon_messages", "پیام‌های Moon Time", NotificationManager.IMPORTANCE_HIGH))
+            val channel = NotificationChannel(channelId, "پیام‌های Moon Time", NotificationManager.IMPORTANCE_HIGH)
+            if (soundOn) {
+                val soundUri = Uri.parse("android.resource://" + applicationContext.packageName + "/" + R.raw.moon_notification)
+                val audio = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                channel.setSound(soundUri, audio)
+            } else channel.setSound(null, null)
+            manager.createNotificationChannel(channel)
         }
     }
 
