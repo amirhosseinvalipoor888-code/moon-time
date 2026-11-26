@@ -371,6 +371,8 @@ private fun MoonNativeApp() {
     var appLanguage by remember { mutableStateOf(featurePrefs.getString("language", "فارسی") ?: "فارسی") }
     var folderNames by remember { mutableStateOf((featurePrefs.getString("folders", "[]") ?: "[]").let { raw -> try { val a=JSONArray(raw); (0 until a.length()).map { a.getString(it) } } catch (_:Exception) { emptyList<String>() } }) }
     var newFolderName by remember { mutableStateOf("") }
+    var roomFolders by remember { mutableStateOf(try { JSONObject(featurePrefs.getString("room_folders","{}") ?: "{}") } catch(_:Exception){JSONObject()} ) }
+    var activeFolder by remember { mutableStateOf("") }
     var savedItems by remember { mutableStateOf((featurePrefs.getString("saved_items", "[]") ?: "[]").let { raw -> try { val a=JSONArray(raw); (0 until a.length()).map { a.getJSONObject(it).optString("text") } } catch (_:Exception) { emptyList<String>() } }) }
     var contacts by remember {
         val saved = context.getSharedPreferences("moon_contacts", Context.MODE_PRIVATE).getString("items", "[]") ?: "[]"
@@ -651,6 +653,13 @@ private fun MoonNativeApp() {
                         )
                         val visibleRooms = rooms.filter { it.title.contains(searchQuery, ignoreCase = true) }
                             .filter { selectedTab != "گروه‌ها" || it.kind == "group" }
+                            .filter { activeFolder.isBlank() || roomFolders.optString(it.id) == activeFolder }
+                        if(folderNames.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal=10.dp),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+                                FilterChip(selected=activeFolder.isBlank(),onClick={activeFolder=""},label={Text("همه")})
+                                folderNames.forEach { folder -> FilterChip(selected=activeFolder==folder,onClick={activeFolder=if(activeFolder==folder)"" else folder},label={Text(folder,maxLines=1)}) }
+                            }
+                        }
                         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
                             items(visibleRooms, key = { it.id }) { room ->
                                 Row(
@@ -896,8 +905,34 @@ private fun MoonNativeApp() {
                                     newFolderName=""
                                 },modifier=Modifier.fillMaxWidth()) { Text("ساخت پوشه") }
                                 if(folderNames.isEmpty()) Text("هنوز پوشه‌ای نساخته‌ای.",color=Muted)
-                                folderNames.forEach { folder -> Row(verticalAlignment=Alignment.CenterVertically) { Text(folder,Modifier.weight(1f),color=White); TextButton(onClick={folderNames=folderNames-folder;featurePrefs.edit().putString("folders",JSONArray(folderNames).toString()).apply()}){Text("حذف")} } }
-                                Text("برای اختصاص گفتگو به پوشه، در فهرست گفتگوها از فیلتر نوع گفتگو استفاده کن. تخصیص اختصاصی هر گفتگو در نسخه بعدی افزوده می‌شود.",color=Muted,fontSize=11.sp)
+                                folderNames.forEach { folder ->
+                                    Text(folder,color=Cyan,fontWeight=FontWeight.Bold)
+                                    rooms.forEach { room ->
+                                        Row(verticalAlignment=Alignment.CenterVertically) {
+                                            Text(room.title,Modifier.weight(1f),color=White,fontSize=12.sp)
+                                            TextButton(onClick={
+                                                val next=JSONObject(roomFolders.toString())
+                                                if(next.optString(room.id)==folder) next.remove(room.id) else next.put(room.id,folder)
+                                                roomFolders=next
+                                                featurePrefs.edit().putString("room_folders",next.toString()).apply()
+                                            }) { Text(if(roomFolders.optString(room.id)==folder)"برداشتن" else "افزودن") }
+                                        }
+                                    }
+                                    Row(verticalAlignment=Alignment.CenterVertically) {
+                                        Text("فیلتر این پوشه",Modifier.weight(1f),color=Muted,fontSize=11.sp)
+                                        TextButton(onClick={activeFolder=folder;dialog=""}){Text("نمایش")}
+                                        TextButton(onClick={
+                                            folderNames=folderNames-folder
+                                            if(activeFolder==folder)activeFolder=""
+                                            val next=JSONObject(roomFolders.toString()); val keys=next.keys(); val remove=mutableListOf<String>()
+                                            while(keys.hasNext()){val key=keys.next();if(next.optString(key)==folder)remove.add(key)}
+                                            remove.forEach{key->next.remove(key)}
+                                            roomFolders=next
+                                            featurePrefs.edit().putString("folders",JSONArray(folderNames).toString()).putString("room_folders",next.toString()).apply()
+                                        }){Text("حذف")}
+                                    }
+                                }
+                                Text("تخصیص گفتگوها و فیلتر پوشه‌ها روی همین دستگاه ذخیره می‌شود.",color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "feature:پیام‌های ذخیره‌شده") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
