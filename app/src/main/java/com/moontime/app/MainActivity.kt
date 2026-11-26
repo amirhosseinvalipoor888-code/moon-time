@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -1505,6 +1506,7 @@ private fun Field(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(m: Msg, loader: ImageLoader, animateEmoji: Boolean = true, language:String="فارسی", onLongPress:()->Unit, onOpen: () -> Unit) {
     Row(
