@@ -151,6 +151,29 @@ private class MoonApi(context:Context) {
     suspend fun verify(emailIn:String,code:String) { save(JSONObject(request("/auth/v1/verify","POST",JSONObject().put("type","signup").put("email",emailIn).put("token",code).toString(),false))) }
     suspend fun login(emailIn:String,password:String) { save(JSONObject(request("/auth/v1/token?grant_type=password","POST",JSONObject().put("email",emailIn).put("password",password).toString(),false))) }
     suspend fun profile() { val id=userId?:return; val name=displayName?.takeIf{it.isNotBlank()} ?: (email?: "کاربر").substringBefore("@"); request("/rest/v1/profiles?on_conflict=id","POST",JSONObject().put("id",id).put("email",email).put("display_name",name).toString(),true,"application/json",mapOf("Prefer" to "resolution=merge-duplicates,return=minimal")) }
+    suspend fun readProfile():JSONObject { val id=userId?:error("ابتدا وارد حساب شو"); val a=JSONArray(request("/rest/v1/profiles?select=display_name,username,bio,avatar_url,email&id=eq.$id")); return if(a.length()>0)a.getJSONObject(0) else JSONObject() }
+    suspend fun updateProfile(name:String,username:String,bio:String) {
+        val id=userId?:error("ابتدا وارد حساب شو"); val n=name.trim(); val u=username.trim()
+        if(n.length !in 2..32) error("نام نمایشی باید بین ۲ تا ۳۲ نویسه باشد.")
+        if(u.isNotEmpty() && !Regex("^[A-Za-z0-9_]{3,24}$").matches(u)) error("نام کاربری باید ۳ تا ۲۴ حرف انگلیسی، عدد یا زیرخط باشد.")
+        request("/rest/v1/profiles?id=eq.$id","PATCH",JSONObject().put("display_name",n).put("username",u.ifBlank{JSONObject.NULL}).put("bio",bio.trim().take(160)).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+        displayName=n; prefs.edit().putString("display_name",n).apply()
+    }
+    suspend fun loadPreferences():JSONObject { val id=userId?:return JSONObject(); val a=JSONArray(request("/rest/v1/user_settings?select=preferences&user_id=eq.$id")); return if(a.length()>0)a.getJSONObject(0).optJSONObject("preferences")?:JSONObject() else JSONObject() }
+    suspend fun savePreferences(v:JSONObject) { val id=userId?:error("ابتدا وارد حساب شو"); request("/rest/v1/user_settings?on_conflict=user_id","POST",JSONObject().put("user_id",id).put("preferences",v).toString(),true,"application/json",mapOf("Prefer" to "resolution=merge-duplicates,return=minimal")) }
+    suspend fun changePassword(v:String) { if(v.length<8)error("رمز عبور باید حداقل ۸ نویسه باشد."); request("/auth/v1/user","PUT",JSONObject().put("password",v).toString(),true) }
+    suspend fun changeEmail(v:String) { if(!android.util.Patterns.EMAIL_ADDRESS.matcher(v.trim()).matches())error("ایمیل را درست وارد کن."); request("/auth/v1/user","PUT",JSONObject().put("email",v.trim()).toString(),true) }
+    suspend fun uploadAvatar(uri:Uri,context:Context):String = withContext(Dispatchers.IO) {
+        val uid=userId?:error("ابتدا وارد حساب شو"); val bytes=context.contentResolver.openInputStream(uri)?.use{it.readBytes()}?:error("خواندن تصویر ناموفق بود")
+        if(bytes.size>3*1024*1024)error("حجم تصویر باید کمتر از ۳ مگابایت باشد.")
+        val mime=context.contentResolver.getType(uri)?:"image/jpeg"; if(mime !in setOf("image/jpeg","image/png","image/webp"))error("فقط JPG، PNG یا WebP پشتیبانی می‌شود.")
+        val ext=when(mime){"image/png"->"png";"image/webp"->"webp";else->"jpg"}; val path="$uid/avatar.$ext"
+        val req=Request.Builder().url("$API_URL/storage/v1/object/moon-avatars/$path").header("apikey",API_KEY).header("Authorization","Bearer ${token?:error("ورود لازم است")}").header("Content-Type",mime).header("x-upsert","true").post(bytes.toRequestBody(mime.toMediaType())).build()
+        val res=http.newCall(req).execute(); val body=res.body?.string().orEmpty(); if(!res.isSuccessful)error("بارگذاری تصویر ناموفق بود: $body")
+        val url="$API_URL/storage/v1/object/public/moon-avatars/$path"
+        request("/rest/v1/profiles?id=eq.$uid","PATCH",JSONObject().put("avatar_url",url).toString(),true,"application/json",mapOf("Prefer" to "return=minimal")); url
+    }
+    suspend fun signOutEverywhere() { request("/auth/v1/logout?scope=global","POST","{}",true); logout() }
     suspend fun rooms():List<Room> {
         val uid=userId?:return emptyList()
         val ms=JSONArray(request("/rest/v1/conversation_members?user_id=eq.$uid&select=conversation_id"))
@@ -327,6 +350,13 @@ private fun MoonNativeApp() {
     val accentColor = when (accentChoice) { "purple" -> Color(0xFF8B70D6); "green" -> Color(0xFF269B76); "orange" -> Color(0xFFE58A36); else -> Violet }
     val chatWallpaper = when (wallpaperChoice) { "night" -> Color(0xFF17212B); "mint" -> Color(0xFFE5F4EA); "sand" -> Color(0xFFF5EBDD); "lavender" -> Color(0xFFECE8F8); else -> Color(0xFFE7EEF3) }
     var contactEmail by remember { mutableStateOf("") }
+    var profileName by remember { mutableStateOf(api.displayName.orEmpty()) }
+    var profileUsername by remember { mutableStateOf("") }
+    var profileBio by remember { mutableStateOf("") }
+    var avatarUrl by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var newEmail by remember { mutableStateOf(api.email.orEmpty()) }
+    var privacyPrefs by remember { mutableStateOf(JSONObject()) }
     val featurePrefs = remember { context.getSharedPreferences("moon_features", Context.MODE_PRIVATE) }
     var readReceipts by remember { mutableStateOf(featurePrefs.getBoolean("read_receipts", true)) }
     var onlineStatus by remember { mutableStateOf(featurePrefs.getBoolean("online_status", true)) }
@@ -419,15 +449,24 @@ private fun MoonNativeApp() {
         if (logged) {
             try {
                 api.profile()
+                val p=api.readProfile()
+                profileName=p.optString("display_name",api.displayName.orEmpty()); profileUsername=p.optString("username")
+                profileBio=p.optString("bio"); avatarUrl=p.optString("avatar_url"); newEmail=api.email.orEmpty()
+                privacyPrefs=api.loadPreferences()
+                onlineStatus=privacyPrefs.optBoolean("online_status",onlineStatus)
+                profileSearchable=privacyPrefs.optBoolean("profile_searchable",profileSearchable)
+                readReceipts=privacyPrefs.optBoolean("read_receipts",readReceipts)
+                featurePrefs.edit().putBoolean("online_status",onlineStatus).putBoolean("profile_searchable",profileSearchable).putBoolean("read_receipts",readReceipts).apply()
                 refreshRooms()
             } catch (e: Exception) {
-                errorText = e.message ?: "ورود دوباره لازم است"
-                api.logout()
-                logged = false
+                errorText = e.message ?: "ورود دوباره لازم است"; api.logout(); logged = false
             }
         }
     }
 
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if(uri!=null) scope.launch { busy=true; try { avatarUrl=api.uploadAvatar(uri,context); infoText="عکس پروفایل به‌روزرسانی شد." } catch(e:Exception){errorText=e.message?:"بارگذاری تصویر ناموفق بود"} finally{busy=false} }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null && current != null) {
             scope.launch {
@@ -789,25 +828,37 @@ private fun MoonNativeApp() {
                         } else if (dialog == "toggle_dark") {
                             Row(verticalAlignment=Alignment.CenterVertically) { Text("حالت شب",Modifier.weight(1f),color=White);Switch(checked=darkMode,onCheckedChange={darkMode=it;saveAsset("dark_mode",it)}) }
                         } else if (dialog == "feature:حساب کاربری") {
-                            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                Text("ایمیل: ${api.email ?: "—"}", color=White)
-                                Text("نام نمایشی: ${api.displayName ?: "ثبت نشده"}", color=White)
-                                Text("شناسه حساب: ${api.userId ?: "—"}", color=Muted, fontSize=11.sp)
-                                Text("ویرایش نام و عکس پروفایل هنوز به جدول ویرایش پروفایل متصل نیست؛ این صفحه اطلاعات واقعی حساب فعلی را نشان می‌دهد.", color=Muted, fontSize=11.sp)
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("ایمیل: ${api.email ?: "—"}",color=Muted,fontSize=11.sp)
+                                Field(profileName,{profileName=it},"نام نمایشی")
+                                Field(profileUsername,{profileUsername=it},"نام کاربری انگلیسی (اختیاری)")
+                                Field(profileBio,{profileBio=it},"درباره من (حداکثر ۱۶۰ نویسه)")
+                                Button(enabled=!busy,onClick={scope.launch { busy=true; try{api.updateProfile(profileName,profileUsername,profileBio);infoText="پروفایل ذخیره شد.";dialog=""}catch(e:Exception){errorText=e.message?:"ذخیره پروفایل ناموفق بود"}finally{busy=false} }},modifier=Modifier.fillMaxWidth()){Text("ذخیره پروفایل")}
+                                OutlinedButton(onClick={avatarPicker.launch("image/*")},modifier=Modifier.fillMaxWidth()){Text(if(avatarUrl.isBlank())"انتخاب عکس پروفایل" else "تغییر عکس پروفایل")}
                             }
                         } else if (dialog == "feature:حریم خصوصی و امنیت") {
                             Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                Row(verticalAlignment=Alignment.CenterVertically) { Text("نمایش وضعیت آنلاین در برنامه",Modifier.weight(1f),color=White); Switch(onlineStatus,{ onlineStatus=it; featurePrefs.edit().putBoolean("online_status",it).apply() }) }
-                                Row(verticalAlignment=Alignment.CenterVertically) { Text("قابل جست‌وجو بودن پروفایل",Modifier.weight(1f),color=White); Switch(profileSearchable,{ profileSearchable=it; featurePrefs.edit().putBoolean("profile_searchable",it).apply() }) }
-                                Row(verticalAlignment=Alignment.CenterVertically) { Text("رسید خواندن پیام‌ها (تنظیم محلی)",Modifier.weight(1f),color=White); Switch(readReceipts,{ readReceipts=it; featurePrefs.edit().putBoolean("read_receipts",it).apply() }) }
-                                Text("این سه گزینه فعلاً فقط ترجیح محلی را ذخیره می‌کنند و هنوز سیاست دسترسی یا وضعیت آنلاین سرور را تغییر نمی‌دهند.",color=Muted,fontSize=11.sp)
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("نمایش وضعیت آنلاین",Modifier.weight(1f),color=White); Switch(onlineStatus,{v->onlineStatus=v;featurePrefs.edit().putBoolean("online_status",v).apply();privacyPrefs.put("online_status",v);scope.launch{try{api.savePreferences(privacyPrefs)}catch(e:Exception){errorText=e.message?:"ذخیره تنظیمات ناموفق بود"}}}) }
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("قابل جست‌وجو بودن پروفایل",Modifier.weight(1f),color=White); Switch(profileSearchable,{v->profileSearchable=v;featurePrefs.edit().putBoolean("profile_searchable",v).apply();privacyPrefs.put("profile_searchable",v);scope.launch{try{api.savePreferences(privacyPrefs)}catch(e:Exception){errorText=e.message?:"ذخیره تنظیمات ناموفق بود"}}}) }
+                                Row(verticalAlignment=Alignment.CenterVertically) { Text("رسید خواندن پیام‌ها",Modifier.weight(1f),color=White); Switch(readReceipts,{v->readReceipts=v;featurePrefs.edit().putBoolean("read_receipts",v).apply();privacyPrefs.put("read_receipts",v);scope.launch{try{api.savePreferences(privacyPrefs)}catch(e:Exception){errorText=e.message?:"ذخیره تنظیمات ناموفق بود"}}}) }
+                                Text("تنظیمات در حساب کاربری ذخیره می‌شوند؛ جست‌وجوی پروفایل بر اساس ایمیل از این ترجیح پیروی می‌کند.",color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "feature:دستگاه‌های فعال") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                Text("این دستگاه",color=White,fontWeight=FontWeight.Bold)
-                                Text("Android • ${Build.MODEL}",color=White)
-                                Text("نشست فعلی حساب Moon Time",color=Muted,fontSize=11.sp)
-                                Text("فهرست و لغو نشست‌های دیگر هنوز در backend پیاده‌سازی نشده است؛ این صفحه عمداً ادعای نمایش دستگاه‌های دیگر را نمی‌کند.",color=Muted,fontSize=11.sp)
+                                Text("دستگاه فعلی: Android • ${Build.MODEL}",color=White,fontWeight=FontWeight.Bold)
+                                Text("خروج سراسری همه نشست‌ها را باطل می‌کند؛ پس از آن باید دوباره وارد حساب شوی.",color=Muted,fontSize=12.sp)
+                                Button(enabled=!busy,onClick={scope.launch{busy=true;try{api.signOutEverywhere();realtime?.close();realtime=null;logged=false;dialog="";infoText="همه نشست‌ها باطل شدند."}catch(e:Exception){errorText=e.message?:"خروج سراسری ناموفق بود"}finally{busy=false}}},modifier=Modifier.fillMaxWidth(),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFFB83E55))){Text("خروج از همه دستگاه‌ها")}
+                                Text("به‌دلیل محدودیت API امن کلاینت، فهرست نشست‌های دیگر نمایش داده نمی‌شود.",color=Muted,fontSize=11.sp)
+                            }
+                        } else if (dialog == "feature:تغییر رمز عبور") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Field(newPassword,{newPassword=it},"رمز جدید (حداقل ۸ نویسه)",true)
+                                Button(enabled=newPassword.length>=8 && !busy,onClick={scope.launch{busy=true;try{api.changePassword(newPassword);newPassword="";infoText="رمز عبور تغییر کرد.";dialog=""}catch(e:Exception){errorText=e.message?:"تغییر رمز ناموفق بود"}finally{busy=false}}},modifier=Modifier.fillMaxWidth()){Text("تغییر رمز عبور")}
+                            }
+                        } else if (dialog == "feature:تغییر ایمیل") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Field(newEmail,{newEmail=it},"ایمیل جدید")
+                                Button(enabled=newEmail.contains("@") && !busy,onClick={scope.launch{busy=true;try{api.changeEmail(newEmail);infoText="درخواست تغییر ایمیل ثبت شد؛ ایمیل جدید را برای تأیید بررسی کن.";dialog=""}catch(e:Exception){errorText=e.message?:"تغییر ایمیل ناموفق بود"}finally{busy=false}}},modifier=Modifier.fillMaxWidth()){Text("درخواست تغییر ایمیل")}
                             }
                         } else if (dialog == "feature:داده و حافظه") {
                             val cacheBytes = remember { context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
