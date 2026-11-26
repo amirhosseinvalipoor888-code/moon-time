@@ -649,12 +649,14 @@ private fun MoonNativeApp() {
                             }
                         }
                     }, { receipt ->
-                        if(receipt.optString("user_id")!=api.userId) {
-                            val room=current
-                            if(room!=null) {
-                                val outgoing=messages.filter{it.mine}.map{it.id}
-                                val fullyRead=try{api.fullyReadMessageIds(room.id,outgoing)}catch(_:Exception){emptySet<String>()}
-                                messages=messages.map{if(it.id in fullyRead)it.copy(read=true) else it}
+                        scope.launch {
+                            if(receipt.optString("user_id")!=api.userId) {
+                                val room=current
+                                if(room!=null) {
+                                    val outgoing=messages.filter{it.mine}.map{it.id}
+                                    val fullyRead=try{api.fullyReadMessageIds(room.id,outgoing)}catch(_:Exception){emptySet<String>()}
+                                    messages=messages.map{if(it.id in fullyRead)it.copy(read=true) else it}
+                                }
                             }
                         }
                     })
