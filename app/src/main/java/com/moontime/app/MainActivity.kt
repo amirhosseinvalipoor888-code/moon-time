@@ -77,7 +77,7 @@ private val Muted: Color get() = if (activeDarkTheme) Color(0xFF9AA9B8) else Col
 private val http = OkHttpClient.Builder().connectTimeout(25, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).build()
 
 data class Room(val id:String,val title:String,val kind:String)
-data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null,val mediaUrl:String?=null,val pending:Boolean=false)
+data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null,val mediaUrl:String?=null,val pending:Boolean=false,val read:Boolean=false)
 data class MoonContact(val id:String,val name:String,val email:String)
 
 class MainActivity : ComponentActivity() {
@@ -259,6 +259,17 @@ private class MoonApi(context:Context) {
         val a=JSONArray(request("/rest/v1/messages?select=id,body,sender_id,created_at,message_kind,attachment_path,attachment_name&conversation_id=eq.${room.id}&order=created_at.asc&limit=200"))
         return (0 until a.length()).map{val o=a.getJSONObject(it);Msg(o.getString("id"),o.optString("body"),o.optString("sender_id")==uid,o.optString("created_at"),o.optString("message_kind","text"),o.optString("attachment_path").takeIf{s->s.isNotBlank()},o.optString("attachment_name").takeIf{s->s.isNotBlank()})}
     }
+    suspend fun readReceiptIds(messageIds:List<String>):Set<String> {
+        if(messageIds.isEmpty()) return emptySet()
+        val ids=messageIds.distinct().joinToString(",")
+        val rows=JSONArray(request("/rest/v1/message_read_receipts?select=message_id&message_id=in.($ids)"))
+        return (0 until rows.length()).map{rows.getJSONObject(it).optString("message_id")}.toSet()
+    }
+    suspend fun peerId(roomId:String):String? {
+        val uid=userId?:return null
+        val rows=JSONArray(request("/rest/v1/conversation_members?select=user_id&conversation_id=eq.$roomId&user_id=neq.$uid"))
+        return if(rows.length()>0) rows.getJSONObject(0).optString("user_id").takeIf{it.isNotBlank()} else null
+    }
     suspend fun markRead(messageIds:List<String>) {
         val uid=userId?:return
         if(messageIds.isEmpty())return
@@ -291,25 +302,66 @@ private class MoonApi(context:Context) {
     }
 }
 
-private class Realtime(private val roomId:String,private val token:String,private val onMessage:(JSONObject)->Unit) {
+private class Realtime(private val roomId:String,private val token:String,private val onMessage:(JSONObject)->Unit,private val onRead:(JSONObject)->Unit = {}) {
     private val client=OkHttpClient.Builder().pingInterval(25,TimeUnit.SECONDS).build()
     private var socket:WebSocket?=null
     private var heartbeat:java.util.Timer?=null
     fun connect() {
         val req=Request.Builder().url(API_URL.replace("https://","wss://")+"/realtime/v1/websocket?apikey=$API_KEY&vsn=1.0.0").build()
         socket=client.newWebSocket(req,object:WebSocketListener(){
-            override fun onOpen(webSocket:WebSocket,response:Response) {
-                val config=JSONObject().put("broadcast",JSONObject().put("ack",false).put("self",false)).put("presence",JSONObject().put("key","")).put("postgres_changes",JSONArray().put(JSONObject().put("event","INSERT").put("schema","public").put("table","messages").put("filter","conversation_id=eq.$roomId")))
-                val payload=JSONObject().put("config",config).put("access_token",token)
-                webSocket.send(JSONObject().put("topic","realtime:room:$roomId").put("event","phx_join").put("payload",payload).put("ref","1").put("join_ref","1").toString())
-                heartbeat=java.util.Timer("moon-realtime-heartbeat",true).also { timer -> timer.scheduleAtFixedRate(object:java.util.TimerTask(){override fun run(){webSocket.send(JSONObject().put("topic","phoenix").put("event","heartbeat").put("payload",JSONObject()).put("ref",System.nanoTime().toString()).toString())}},25000,25000) }
+            override fun onOpen(ws:WebSocket,response:Response) {
+                val changes=JSONArray()
+                    .put(JSONObject().put("event","INSERT").put("schema","public").put("table","messages").put("filter","conversation_id=eq.$roomId"))
+                    .put(JSONObject().put("event","INSERT").put("schema","public").put("table","message_read_receipts"))
+                val config=JSONObject().put("broadcast",JSONObject().put("ack",false).put("self",false)).put("presence",JSONObject().put("enabled",false).put("key","")).put("postgres_changes",changes)
+                ws.send(JSONObject().put("topic","realtime:room:$roomId").put("event","phx_join").put("payload",JSONObject().put("config",config).put("access_token",token)).put("ref","1").put("join_ref","1").toString())
+                heartbeat=java.util.Timer("moon-room-heartbeat",true).also{t->t.scheduleAtFixedRate(object:java.util.TimerTask(){override fun run(){ws.send(JSONObject().put("topic","phoenix").put("event","heartbeat").put("payload",JSONObject()).put("ref",System.nanoTime().toString()).toString())}},25000,25000)}
             }
-            override fun onMessage(webSocket:WebSocket,text:String) {
-                try { val root=JSONObject(text);val payload=root.optJSONObject("payload")?:return;val data=payload.optJSONObject("data")?:return;val record=data.optJSONObject("record")?:return;if(record.optString("conversation_id")==roomId)onMessage(record) }catch(_:Exception){}
+            override fun onMessage(ws:WebSocket,text:String) {
+                try { val root=JSONObject(text);val data=root.optJSONObject("payload")?.optJSONObject("data")?:return;val record=data.optJSONObject("record")?:return
+                    when(data.optString("table")){"messages"->if(record.optString("conversation_id")==roomId)onMessage(record);"message_read_receipts"->onRead(record)}
+                }catch(_:Exception){}
             }
         })
     }
     fun close(){heartbeat?.cancel();heartbeat=null;socket?.close(1000,"switch room");socket=null;client.dispatcher.executorService.shutdown()}
+}
+private class PresenceTracker(private val uid:String,private val token:String,private val displayName:String,private val shouldTrack:Boolean,private val onUsers:(Set<String>)->Unit) {
+    private val client=OkHttpClient.Builder().pingInterval(25,TimeUnit.SECONDS).build()
+    private var socket:WebSocket?=null
+    private var heartbeat:java.util.Timer?=null
+    private val states=linkedMapOf<String,JSONArray>()
+    private val topic="realtime:moon-online"
+    private var tracked=false
+    fun connect(){
+        val req=Request.Builder().url(API_URL.replace("https://","wss://")+"/realtime/v1/websocket?apikey=$API_KEY&vsn=1.0.0").build()
+        socket=client.newWebSocket(req,object:WebSocketListener(){
+            override fun onOpen(ws:WebSocket,response:Response){
+                val cfg=JSONObject().put("broadcast",JSONObject().put("ack",false).put("self",false)).put("presence",JSONObject().put("enabled",true).put("key",uid)).put("postgres_changes",JSONArray()).put("private",false)
+                ws.send(JSONObject().put("topic",topic).put("event","phx_join").put("payload",JSONObject().put("config",cfg).put("access_token",token)).put("ref","1").put("join_ref","1").toString())
+                heartbeat=java.util.Timer("moon-presence-heartbeat",true).also{t->t.scheduleAtFixedRate(object:java.util.TimerTask(){override fun run(){ws.send(JSONObject().put("topic","phoenix").put("event","heartbeat").put("payload",JSONObject()).put("ref",System.nanoTime().toString()).toString())}},25000,25000)}
+            }
+            override fun onMessage(ws:WebSocket,text:String){
+                try{
+                    val root=JSONObject(text);val event=root.optString("event");val payload=root.optJSONObject("payload")?:JSONObject()
+                    when(event){
+                        "phx_reply"->if(root.optString("ref")=="1"&&payload.optString("status")=="ok"&&shouldTrack&&!tracked){
+                            val data=JSONObject().put("user_id",uid).put("display_name",displayName.take(40)).put("online_at",java.time.Instant.now().toString())
+                            ws.send(JSONObject().put("topic",topic).put("event","presence").put("payload",JSONObject().put("event","track").put("payload",data)).put("ref","2").put("join_ref","1").toString());tracked=true
+                        }
+                        "presence_state"->synchronized(states){states.clear();val it=payload.keys();while(it.hasNext()){val k=it.next();states[k]=payload.optJSONArray(k)?:JSONArray()};publish()}
+                        "presence_diff"->synchronized(states){
+                            val joins=payload.optJSONObject("joins")?:JSONObject();val ji=joins.keys();while(ji.hasNext()){val k=ji.next();states[k]=joins.optJSONArray(k)?:JSONArray()}
+                            val leaves=payload.optJSONObject("leaves")?:JSONObject();val li=leaves.keys();while(li.hasNext()){val k=li.next();val left=leaves.optJSONArray(k)?:JSONArray();if(left.length()==0)states.remove(k) else states[k]=left};publish()
+                        }
+                    }
+                }catch(_:Exception){}
+            }
+            override fun onFailure(ws:WebSocket,t:Throwable,response:Response?){onUsers(emptySet())}
+        })
+    }
+    private fun publish(){onUsers(states.filterValues{it.length()>0}.keys.toSet())}
+    fun close(){heartbeat?.cancel();heartbeat=null;socket?.close(1000,"presence stopped");socket=null;onUsers(emptySet());client.dispatcher.executorService.shutdown()}
 }
 
 @Composable
@@ -339,6 +391,8 @@ private fun MoonNativeApp() {
     var dialogValue by remember { mutableStateOf("") }
     var realtime by remember { mutableStateOf<Realtime?>(null) }
     var online by remember { mutableStateOf(false) }
+    var onlineUsers by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var currentPeerId by remember { mutableStateOf<String?>(null) }
     val mediaLoader = remember(context) { ImageLoader.Builder(context).components { if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory()) }.build() }
     val assetPrefs = remember { context.getSharedPreferences("moon_offline_assets", Context.MODE_PRIVATE) }
     var darkMode by remember { mutableStateOf(assetPrefs.getBoolean("dark_mode", false)) }
@@ -391,15 +445,17 @@ private fun MoonNativeApp() {
     fun connectRoom(room: Room) {
         scope.launch {
             try {
+                currentPeerId=if(room.kind=="direct") api.peerId(room.id) else null
                 val loadedMessages = api.messages(room)
                 if(readReceipts) try { api.markRead(loadedMessages.filter{!it.mine}.map{it.id}) } catch(_:Exception) { }
-                messages = (loadedMessages + api.pendingFor(room.id)).sortedBy { it.time }.map { m ->
+                val readIds=try{api.readReceiptIds(loadedMessages.filter{it.mine}.map{it.id})}catch(_:Exception){emptySet<String>()}
+                messages = (loadedMessages.map{if(it.mine)it.copy(read=it.id in readIds) else it} + api.pendingFor(room.id)).sortedBy { it.time }.map { m ->
                     if (m.path != null) try { m.copy(mediaUrl = api.signed(m.path)) } catch (_:Exception) { m } else m
                 }
                 realtime?.close()
                 val access = api.token
                 if (access != null) {
-                    val connection = Realtime(room.id, access) { record ->
+                    val connection = Realtime(room.id, access, { record ->
                         scope.launch {
                             val messageId = record.optString("id")
                             if (messages.none { it.id == messageId }) {
@@ -412,6 +468,7 @@ private fun MoonNativeApp() {
                                     record.optString("attachment_path").takeIf { it.isNotBlank() },
                                     record.optString("attachment_name").takeIf { it.isNotBlank() }
                                 )
+                                if(record.optString("sender_id")!=api.userId && readReceipts) scope.launch { try { api.markRead(listOf(messageId)) } catch(_:Exception){} }
                                 if (record.optString("attachment_path").isNotBlank()) {
                                     try {
                                         val url = api.signed(record.optString("attachment_path"))
@@ -420,7 +477,12 @@ private fun MoonNativeApp() {
                                 }
                             }
                         }
-                    }
+                    }, { receipt ->
+                        if(receipt.optString("user_id")!=api.userId) {
+                            val mid=receipt.optString("message_id")
+                            messages=messages.map{if(it.id==mid)it.copy(read=true) else it}
+                        }
+                    })
                     realtime = connection
                     connection.connect()
                     online = true
@@ -456,6 +518,15 @@ private fun MoonNativeApp() {
         }
     }
 
+    DisposableEffect(logged,onlineStatus,api.userId,api.token) {
+        var tracker:PresenceTracker?=null
+        if(logged && api.userId!=null && api.token!=null) {
+            tracker=PresenceTracker(api.userId!!,api.token!!,profileName.ifBlank{api.displayName?: "Moon Time"},onlineStatus){ ids -> onlineUsers=ids }
+            tracker.connect()
+        } else onlineUsers=emptySet()
+        onDispose { tracker?.close(); onlineUsers=emptySet() }
+    }
+
     LaunchedEffect(Unit) {
         if (logged) {
             try {
@@ -464,6 +535,7 @@ private fun MoonNativeApp() {
                 profileName=p.optString("display_name",api.displayName.orEmpty()); profileUsername=p.optString("username")
                 profileBio=p.optString("bio"); avatarUrl=p.optString("avatar_url"); newEmail=api.email.orEmpty()
                 privacyPrefs=api.loadPreferences()
+                appLanguage=privacyPrefs.optString("app_language",appLanguage)
                 onlineStatus=privacyPrefs.optBoolean("online_status",onlineStatus)
                 profileSearchable=privacyPrefs.optBoolean("profile_searchable",profileSearchable)
                 readReceipts=privacyPrefs.optBoolean("read_receipts",readReceipts)
@@ -633,7 +705,7 @@ private fun MoonNativeApp() {
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(current!!.title, color = Color(0xFF202124), fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 1)
-                                Text(if (online) "آنلاین" else "آخرین بازدید", color = Color(0xFF707579), fontSize = 11.sp)
+                                Text(tr(if(current!!.kind=="direct") if(currentPeerId!=null && currentPeerId in onlineUsers) "آنلاین" else "آفلاین" else "اعضای گفتگو",appLanguage), color = Color(0xFF707579), fontSize = 11.sp)
                             }
                             IconButton(onClick = { dialog = "profile" }) { Icon(Icons.Default.MoreVert, null, tint = Color(0xFF707579)) }
                         } else {
@@ -860,7 +932,7 @@ private fun MoonNativeApp() {
                                 Row(verticalAlignment=Alignment.CenterVertically) { Text("نمایش وضعیت آنلاین",Modifier.weight(1f),color=White); Switch(onlineStatus,{v->onlineStatus=v;featurePrefs.edit().putBoolean("online_status",v).apply();privacyPrefs.put("online_status",v);scope.launch{try{api.savePreferences(privacyPrefs)}catch(e:Exception){errorText=e.message?:"ذخیره تنظیمات ناموفق بود"}}}) }
                                 Row(verticalAlignment=Alignment.CenterVertically) { Text("قابل جست‌وجو بودن پروفایل",Modifier.weight(1f),color=White); Switch(profileSearchable,{v->profileSearchable=v;featurePrefs.edit().putBoolean("profile_searchable",v).apply();privacyPrefs.put("profile_searchable",v);scope.launch{try{api.savePreferences(privacyPrefs)}catch(e:Exception){errorText=e.message?:"ذخیره تنظیمات ناموفق بود"}}}) }
                                 Row(verticalAlignment=Alignment.CenterVertically) { Text("رسید خواندن پیام‌ها",Modifier.weight(1f),color=White); Switch(readReceipts,{v->readReceipts=v;featurePrefs.edit().putBoolean("read_receipts",v).apply();privacyPrefs.put("read_receipts",v);scope.launch{try{api.savePreferences(privacyPrefs)}catch(e:Exception){errorText=e.message?:"ذخیره تنظیمات ناموفق بود"}}}) }
-                                Text("تنظیمات در حساب کاربری ذخیره می‌شوند؛ جست‌وجوی پروفایل بر اساس ایمیل از این ترجیح پیروی می‌کند.",color=Muted,fontSize=11.sp)
+                                Text(tr("وضعیت آنلاین با اتصال زنده همگام می‌شود؛ خاموش‌کردن آن حضور تو را پنهان می‌کند. رسید خواندن نیز برای پیام‌های دریافتی ثبت می‌شود.",appLanguage),color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "feature:دستگاه‌های فعال") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -889,12 +961,12 @@ private fun MoonNativeApp() {
                         } else if (dialog == "feature:زبان برنامه") {
                             Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
                                 listOf("فارسی","English","العربية","Türkçe","Русский","Deutsch").forEach { lang ->
-                                    Row(Modifier.fillMaxWidth().clickable { appLanguage=lang; featurePrefs.edit().putString("language",lang).apply(); infoText="زبان انتخابی ذخیره شد؛ ترجمه کامل صفحات در نسخه بعدی تکمیل می‌شود." }.padding(vertical=7.dp),verticalAlignment=Alignment.CenterVertically) {
+                                    Row(Modifier.fillMaxWidth().clickable { appLanguage=lang; featurePrefs.edit().putString("language",lang).apply(); scope.launch { try { val p=JSONObject(privacyPrefs.toString()).put("app_language",lang); privacyPrefs=p; api.savePreferences(p); infoText=tr("زبان برنامه ذخیره و همگام شد.",appLanguage) } catch(e:Exception){ errorText=e.message?:"ذخیره زبان روی سرور ناموفق بود" } } }.padding(vertical=7.dp),verticalAlignment=Alignment.CenterVertically) {
                                         Text(lang,Modifier.weight(1f),color=White)
-                                        RadioButton(selected=appLanguage==lang,onClick={appLanguage=lang;featurePrefs.edit().putString("language",lang).apply();infoText="زبان انتخابی ذخیره شد؛ ترجمه کامل صفحات در نسخه بعدی تکمیل می‌شود."})
+                                        RadioButton(selected=appLanguage==lang,onClick={appLanguage=lang;featurePrefs.edit().putString("language",lang).apply();scope.launch{try{val p=JSONObject(privacyPrefs.toString()).put("app_language",lang);privacyPrefs=p;api.savePreferences(p);infoText=tr("زبان برنامه ذخیره و همگام شد.",appLanguage)}catch(e:Exception){errorText=e.message?:"ذخیره زبان روی سرور ناموفق بود"}}})
                                     }
                                 }
-                                Text("زبان انتخابی ذخیره می‌شود؛ در حال حاضر رابط اصلی فارسی است و ترجمه کامل زبان‌های دیگر هنوز تکمیل نشده.",color=Muted,fontSize=11.sp)
+                                Text(tr("زبان انتخابی در حساب ذخیره می‌شود و ترجمه رابط فعال است.",appLanguage),color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "feature:پوشه‌های گفتگو" || dialog == "feature:پوشه‌ها") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -1149,12 +1221,10 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
                     Text(m.text, color = White, fontSize = 14.sp)
                 }
             }
-            Text(
-                if (m.pending) "در صف ارسال" else m.time.take(16).replace("T", " "),
-                color = if (m.pending) Violet else Color(0xFF707579),
-                fontSize = 9.sp,
-                modifier = Modifier.align(Alignment.End)
-            )
+            Row(Modifier.align(Alignment.End),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                Text(if(m.pending) "در صف ارسال" else m.time.take(16).replace("T"," "),color=if(m.pending)Violet else Color(0xFF707579),fontSize=9.sp)
+                if(m.mine && !m.pending) Text(if(m.read) "✓✓" else "✓",color=if(m.read)Color(0xFF3390EC) else Color(0xFF707579),fontSize=11.sp,fontWeight=FontWeight.Bold)
+            }
         }
     }
 }
