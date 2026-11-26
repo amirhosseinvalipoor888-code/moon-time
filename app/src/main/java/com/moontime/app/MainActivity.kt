@@ -259,6 +259,13 @@ private class MoonApi(context:Context) {
         val a=JSONArray(request("/rest/v1/messages?select=id,body,sender_id,created_at,message_kind,attachment_path,attachment_name&conversation_id=eq.${room.id}&order=created_at.asc&limit=200"))
         return (0 until a.length()).map{val o=a.getJSONObject(it);Msg(o.getString("id"),o.optString("body"),o.optString("sender_id")==uid,o.optString("created_at"),o.optString("message_kind","text"),o.optString("attachment_path").takeIf{s->s.isNotBlank()},o.optString("attachment_name").takeIf{s->s.isNotBlank()})}
     }
+    suspend fun markRead(messageIds:List<String>) {
+        val uid=userId?:return
+        if(messageIds.isEmpty())return
+        val rows=JSONArray()
+        messageIds.distinct().forEach { rows.put(JSONObject().put("message_id",it).put("user_id",uid)) }
+        request("/rest/v1/message_read_receipts?on_conflict=message_id,user_id","POST",rows.toString(),true,"application/json",mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
+    }
     suspend fun send(room:Room,text:String,kind:String="text",path:String?=null,name:String?=null,mime:String?=null,size:Long?=null):Msg {
         val uid=userId?:error("ابتدا وارد شو")
         val rows=JSONArray(request("/rest/v1/messages","POST",JSONObject().put("conversation_id",room.id).put("sender_id",uid).put("body",text.ifBlank{if(kind=="image")"تصویر" else "رسانه"}).put("message_kind",kind).put("attachment_path",path).put("attachment_name",name).put("attachment_mime",mime).put("attachment_size",size).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
@@ -382,7 +389,9 @@ private fun MoonNativeApp() {
     fun connectRoom(room: Room) {
         scope.launch {
             try {
-                messages = (api.messages(room) + api.pendingFor(room.id)).sortedBy { it.time }.map { m ->
+                val loadedMessages = api.messages(room)
+                if(readReceipts) try { api.markRead(loadedMessages.filter{!it.mine}.map{it.id}) } catch(_:Exception) { }
+                messages = (loadedMessages + api.pendingFor(room.id)).sortedBy { it.time }.map { m ->
                     if (m.path != null) try { m.copy(mediaUrl = api.signed(m.path)) } catch (_:Exception) { m } else m
                 }
                 realtime?.close()
@@ -875,7 +884,7 @@ private fun MoonNativeApp() {
                                         RadioButton(selected=appLanguage==lang,onClick={appLanguage=lang;featurePrefs.edit().putString("language",lang).apply();infoText="زبان انتخابی ذخیره شد؛ ترجمه کامل صفحات در نسخه بعدی تکمیل می‌شود."})
                                     }
                                 }
-                                Text("انتخاب زبان ذخیره می‌شود؛ ترجمه همه متن‌های برنامه هنوز کامل نیست.",color=Muted,fontSize=11.sp)
+                                Text("زبان انتخابی ذخیره می‌شود؛ در حال حاضر رابط اصلی فارسی است و ترجمه کامل زبان‌های دیگر هنوز تکمیل نشده.",color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "feature:پوشه‌های گفتگو" || dialog == "feature:پوشه‌ها") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -887,7 +896,7 @@ private fun MoonNativeApp() {
                                 },modifier=Modifier.fillMaxWidth()) { Text("ساخت پوشه") }
                                 if(folderNames.isEmpty()) Text("هنوز پوشه‌ای نساخته‌ای.",color=Muted)
                                 folderNames.forEach { folder -> Row(verticalAlignment=Alignment.CenterVertically) { Text(folder,Modifier.weight(1f),color=White); TextButton(onClick={folderNames=folderNames-folder;featurePrefs.edit().putString("folders",JSONArray(folderNames).toString()).apply()}){Text("حذف")} } }
-                                Text("پوشه‌ها فعلاً روی همین دستگاه ذخیره می‌شوند و هنوز فیلتر/دسته‌بندی خودکار گفتگوها به آن‌ها متصل نیست.",color=Muted,fontSize=11.sp)
+                                Text("برای اختصاص گفتگو به پوشه، در فهرست گفتگوها از فیلتر نوع گفتگو استفاده کن. تخصیص اختصاصی هر گفتگو در نسخه بعدی افزوده می‌شود.",color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "feature:پیام‌های ذخیره‌شده") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
