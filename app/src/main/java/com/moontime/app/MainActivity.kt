@@ -240,8 +240,23 @@ private fun tr(value:String, language:String):String {
         "گزارش از طریق برنامه ایمیل دستگاه ارسال می‌شود؛ سرور Moon Time هنوز سامانه ثبت تیکت ندارد." to "Berichte werden über die E-Mail-App deines Geräts gesendet. Moon Time hat noch kein serverseitiges Ticketsystem.",
         "پیام‌رسان آزمایشی؛ برخی قابلیت‌های پیشرفته هنوز در حال توسعه‌اند." to "Experimenteller Messenger; einige erweiterte Funktionen befinden sich noch in Entwicklung."
     ) else emptyMap()
+    val commonEn=if(language=="English") mapOf(
+      "گروه" to "Group","کانال" to "Channel","گفتگوی خصوصی" to "Private chat","هنوز گفتگویی نداری" to "No chats yet","گفتگویی پیدا نشد" to "No chats found","حساب فعال: " to "Signed in as: ","شناسه حساب: " to "Account ID: ","ایمیل: " to "Email: ","دستگاه فعلی: Android • " to "Current device: Android • ","حافظه موقت برنامه: " to "App cache: ","برداشتن" to "Remove","افزودن" to "Add","اندازه نوشته: " to "Text size: ","نام پوشه جدید" to "New folder name","متن پیام برای ذخیره" to "Message text to save","شرح مشکل یا پیشنهاد" to "Describe the issue or suggestion","انتخاب عکس پروفایل" to "Choose profile photo","تغییر عکس پروفایل" to "Change profile photo","آبی" to "Blue","بنفش" to "Purple","سبز" to "Green","نارنجی" to "Orange","وزیرمتن" to "Vazirmatn","سریف" to "Serif","تک‌فاصله" to "Monospace","کد " to "Code "
+    ) else emptyMap()
+    val commonAr=if(language=="العربية") mapOf(
+      "گروه" to "مجموعة","کانال" to "قناة","گفتگوی خصوصی" to "محادثة خاصة","هنوز گفتگویی نداری" to "لا توجد محادثات بعد","گفتگویی پیدا نشد" to "لم يتم العثور على محادثات","حساب فعال: " to "الحساب: ","شناسه حساب: " to "معرّف الحساب: ","ایمیل: " to "البريد: ","دستگاه فعلی: Android • " to "الجهاز الحالي: Android • ","حافظه موقت برنامه: " to "ذاكرة التطبيق المؤقتة: ","برداشتن" to "إزالة","افزودن" to "إضافة","اندازه نوشته: " to "حجم النص: ","نام پوشه جدید" to "اسم المجلد الجديد","متن پیام برای ذخیره" to "نص الرسالة للحفظ","شرح مشکل یا پیشنهاد" to "صف المشكلة أو الاقتراح","انتخاب عکس پروفایل" to "اختيار صورة الملف","تغییر عکس پروفایل" to "تغيير صورة الملف","آبی" to "أزرق","بنفش" to "بنفسجي","سبز" to "أخضر","نارنجی" to "برتقالي","وزیرمتن" to "Vazirmatn","سریف" to "Serif","تک‌فاصله" to "أحادي المسافة","کد " to "الرمز "
+    ) else emptyMap()
+    val commonTr=if(language=="Türkçe") mapOf(
+      "گروه" to "Grup","کانال" to "Kanal","گفتگوی خصوصی" to "Özel sohbet","هنوز گفتگویی نداری" to "Henüz sohbet yok","گفتگویی پیدا نشد" to "Sohbet bulunamadı","حساب فعال: " to "Oturum açıldı: ","شناسه حساب: " to "Hesap kimliği: ","ایمیل: " to "E-posta: ","دستگاه فعلی: Android • " to "Geçerli cihaz: Android • ","حافظه موقت برنامه: " to "Uygulama önbelleği: ","برداشتن" to "Kaldır","افزودن" to "Ekle","اندازه نوشته: " to "Yazı boyutu: ","نام پوشه جدید" to "Yeni klasör adı","متن پیام برای ذخیره" to "Kaydedilecek mesaj metni","شرح مشکل یا پیشنهاد" to "Sorunu veya öneriyi açıkla","انتخاب عکس پروفایل" to "Profil fotoğrafı seç","تغییر عکس پروفایل" to "Profil fotoğrafını değiştir","آبی" to "Mavi","بنفش" to "Mor","سبز" to "Yeşil","نارنجی" to "Turuncu","وزیرمتن" to "Vazirmatn","سریف" to "Serif","تک‌فاصله" to "Monospace","کد " to "Kod "
+    ) else emptyMap()
+    val commonRu=if(language=="Русский") mapOf(
+      "گروه" to "Группа","کانال" to "Канал","گفتگوی خصوصی" to "Личный чат","هنوز گفتگویی نداری" to "Пока нет чатов","گفتگویی پیدا نشد" to "Чаты не найдены","حساب فعال: " to "Вход выполнен: ","شناسه حساب: " to "ID аккаунта: ","ایمیل: " to "Эл. почта: ","دستگاه فعلی: Android • " to "Текущее устройство: Android • ","حافظه موقت برنامه: " to "Кэш приложения: ","برداشتن" to "Убрать","افزودن" to "Добавить","اندازه نوشته: " to "Размер текста: ","نام پوشه جدید" to "Название новой папки","متن پیام برای ذخیره" to "Текст сообщения для сохранения","شرح مشکل یا پیشنهاد" to "Опишите проблему или предложение","انتخاب عکس پروفایل" to "Выбрать фото профиля","تغییر عکس پروفایل" to "Изменить фото профиля","آبی" to "Синий","بنفش" to "Фиолетовый","سبز" to "Зелёный","نارنجی" to "Оранжевый","وزیرمتن" to "Vazirmatn","سریف" to "Serif","تک‌فاصله" to "Моноширинный","کد " to "Код "
+    ) else emptyMap()
+    val commonDe=if(language=="Deutsch") mapOf(
+      "گروه" to "Gruppe","کانال" to "Kanal","گفتگوی خصوصی" to "Privater Chat","هنوز گفتگویی نداری" to "Noch keine Chats","گفتگویی پیدا نشد" to "Keine Chats gefunden","حساب فعال: " to "Angemeldet als: ","شناسه حساب: " to "Konto-ID: ","ایمیل: " to "E-Mail: ","دستگاه فعلی: Android • " to "Aktuelles Gerät: Android • ","حافظه موقت برنامه: " to "App-Cache: ","برداشتن" to "Entfernen","افزودن" to "Hinzufügen","اندازه نوشته: " to "Textgröße: ","نام پوشه جدید" to "Name des neuen Ordners","متن پیام برای ذخیره" to "Nachrichtentext zum Speichern","شرح مشکل یا پیشنهاد" to "Problem oder Vorschlag beschreiben","انتخاب عکس پروفایل" to "Profilbild auswählen","تغییر عکس پروفایل" to "Profilbild ändern","آبی" to "Blau","بنفش" to "Lila","سبز" to "Grün","نارنجی" to "Orange","وزیرمتن" to "Vazirmatn","سریف" to "Serif","تک‌فاصله" to "Monospace","کد " to "Code "
+    ) else emptyMap()
     val dict=when(language){"English"->en;"العربية"->ar;"Türkçe"->trk;"Русский"->ru;"Deutsch"->de;else->emptyMap()}
-    return dict[value] ?: extra_en[value] ?: extra_ar[value] ?: extra_tr[value] ?: extra_ru[value] ?: extra_de[value] ?: value
+    return dict[value] ?: extra_en[value] ?: extra_ar[value] ?: extra_tr[value] ?: extra_ru[value] ?: extra_de[value] ?: commonEn[value] ?: commonAr[value] ?: commonTr[value] ?: commonRu[value] ?: commonDe[value] ?: value
 }
 
 private class MoonApi(context:Context) {
@@ -899,7 +914,7 @@ private fun MoonNativeApp() {
                                     Spacer(Modifier.width(12.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(room.title, color = Color(0xFF202124), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
-                                        Text(when(room.kind) { "group" -> "گروه"; "channel" -> "کانال"; else -> "گفتگوی خصوصی" }, color = Color(0xFF707579), fontSize = 12.sp)
+                                        Text(tr(when(room.kind) { "group" -> "گروه"; "channel" -> "کانال"; else -> "گفتگوی خصوصی" },appLanguage), color = Color(0xFF707579), fontSize = 12.sp)
                                     }
                                 }
                                 HorizontalDivider(color = Color(0xFFF0F1F2), thickness = 0.7.dp)
@@ -907,7 +922,7 @@ private fun MoonNativeApp() {
                             if (visibleRooms.isEmpty()) item {
                                 Column(Modifier.fillMaxWidth().padding(36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(tr("☾",appLanguage), fontSize = 42.sp, color = Violet)
-                                    Text(if (searchQuery.isBlank()) "هنوز گفتگویی نداری" else "گفتگویی پیدا نشد", color = Color(0xFF202124), fontWeight = FontWeight.Bold)
+                                    Text(tr(if (searchQuery.isBlank()) "هنوز گفتگویی نداری" else "گفتگویی پیدا نشد",appLanguage), color = Color(0xFF202124), fontWeight = FontWeight.Bold)
                                     Text(tr("برای شروع، گفتگوی جدید بساز.",appLanguage), color = Color(0xFF707579), fontSize = 12.sp)
                                     Button(onClick = { dialog = "direct" }, modifier = Modifier.padding(top = 12.dp)) { Text(tr("گفتگوی جدید",appLanguage)) }
                                 }
@@ -1013,8 +1028,8 @@ private fun MoonNativeApp() {
                                 modifier = Modifier.heightIn(max = 480.dp),
                                 verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
-                                Text("حساب فعال: ${api.email ?: "—"}", color = White)
-                                Text("شناسه حساب: ${api.userId ?: "—"}", color = Muted, fontSize = 11.sp)
+                                Text(tr("حساب فعال: ",appLanguage)+(api.email ?: "—"), color = White)
+                                Text(tr("شناسه حساب: ",appLanguage)+(api.userId ?: "—"), color = Muted, fontSize = 11.sp)
                                 Button(onClick = { dialog = ""; refreshRooms() }, modifier = Modifier.fillMaxWidth()) { Text(tr("همگام‌سازی گفتگوها",appLanguage)) }
                                 listOf(
                                     "حساب کاربری", "تغییر رمز عبور", "تغییر ایمیل",
@@ -1042,17 +1057,17 @@ private fun MoonNativeApp() {
                                 Text(tr("این منابع و تنظیمات داخل برنامه هستند و روی همین گوشی ذخیره می‌شوند.",appLanguage), color = Muted, fontSize = 11.sp)
                                 Row(verticalAlignment = Alignment.CenterVertically) { Text(tr("حالت شب",appLanguage), Modifier.weight(1f), color = White); Switch(checked = darkMode, onCheckedChange = { darkMode=it; saveAsset("dark_mode",it) }) }
                                 Text(tr("رنگ برنامه",appLanguage), color = White)
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { listOf("blue" to "آبی","purple" to "بنفش","green" to "سبز","orange" to "نارنجی").forEach { (k,v) -> FilterChip(selected=accentChoice==k,onClick={accentChoice=k;saveAsset("accent",k)},label={Text(v)}) } }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { listOf("blue" to "آبی","purple" to "بنفش","green" to "سبز","orange" to "نارنجی").forEach { (k,v) -> FilterChip(selected=accentChoice==k,onClick={accentChoice=k;saveAsset("accent",k)},label={Text(tr(v,appLanguage))}) } }
                                 Text(tr("پس‌زمینه گفتگو",appLanguage), color = White)
                                 listOf("default" to "پیش‌فرض","night" to "شب","mint" to "نعنایی","sand" to "شنی","lavender" to "یاسی").forEach { (k,v) ->
                                     Row(Modifier.fillMaxWidth().clickable { wallpaperChoice=k;saveAsset("wallpaper",k) }.padding(vertical=2.dp),verticalAlignment=Alignment.CenterVertically) {
                                         Box(Modifier.size(20.dp).clip(CircleShape).background(when(k){"night"->Color(0xFF17212B);"mint"->Color(0xFFE5F4EA);"sand"->Color(0xFFF5EBDD);"lavender"->Color(0xFFECE8F8);else->Color(0xFFE7EEF3)}))
-                                        Spacer(Modifier.width(8.dp)); Text(v,color=White,modifier=Modifier.weight(1f)); RadioButton(selected=wallpaperChoice==k,onClick={wallpaperChoice=k;saveAsset("wallpaper",k)})
+                                        Spacer(Modifier.width(8.dp)); Text(tr(v,appLanguage),color=White,modifier=Modifier.weight(1f)); RadioButton(selected=wallpaperChoice==k,onClick={wallpaperChoice=k;saveAsset("wallpaper",k)})
                                     }
                                 }
                                 Text(tr("قلم نوشته",appLanguage), color = White)
-                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("sans" to "وزیرمتن","serif" to "سریف","mono" to "تک‌فاصله").forEach { (k,v)->FilterChip(selected=fontChoice==k,onClick={fontChoice=k;saveAsset("font",k)},label={Text(v)}) } }
-                                Text("اندازه نوشته: ${(fontScale*100).toInt()}٪",color=White)
+                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("sans" to "وزیرمتن","serif" to "سریف","mono" to "تک‌فاصله").forEach { (k,v)->FilterChip(selected=fontChoice==k,onClick={fontChoice=k;saveAsset("font",k)},label={Text(tr(v,appLanguage))}) } }
+                                Text(tr("اندازه نوشته: ",appLanguage)+"${(fontScale*100).toInt()}%",color=White)
                                 Slider(value=fontScale,onValueChange={fontScale=it;saveAsset("font_scale",it)},valueRange=0.85f..1.25f)
                                 Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("انیمیشن‌های رابط",appLanguage),Modifier.weight(1f),color=White);Switch(checked=motionEnabled,onCheckedChange={motionEnabled=it;saveAsset("motion",it)}) }
                                 Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("ایموجی‌های متحرک",appLanguage),Modifier.weight(1f),color=White);Switch(checked=emojiMotionEnabled,onCheckedChange={emojiMotionEnabled=it;saveAsset("emoji_motion",it)}) }
@@ -1074,12 +1089,12 @@ private fun MoonNativeApp() {
                             Row(verticalAlignment=Alignment.CenterVertically) { Text(tr("حالت شب",appLanguage),Modifier.weight(1f),color=White);Switch(checked=darkMode,onCheckedChange={darkMode=it;saveAsset("dark_mode",it)}) }
                         } else if (dialog == "feature:حساب کاربری") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                Text("ایمیل: ${api.email ?: "—"}",color=Muted,fontSize=11.sp)
+                                Text(tr("ایمیل: ",appLanguage)+(api.email ?: "—"),color=Muted,fontSize=11.sp)
                                 Field(profileName, { profileName = it }, tr("نام نمایشی",appLanguage))
                                 Field(profileUsername, { profileUsername = it }, tr("نام کاربری انگلیسی (اختیاری)",appLanguage))
                                 Field(profileBio, { profileBio = it }, tr("درباره من (حداکثر ۱۶۰ نویسه)",appLanguage))
                                 Button(enabled=!busy,onClick={scope.launch { busy=true; try{api.updateProfile(profileName,profileUsername,profileBio);infoText="پروفایل ذخیره شد.";dialog=""}catch(e:Exception){errorText=e.message?:"ذخیره پروفایل ناموفق بود"}finally{busy=false} }},modifier=Modifier.fillMaxWidth()){Text(tr("ذخیره پروفایل",appLanguage))}
-                                OutlinedButton(onClick={avatarPicker.launch("image/*")},modifier=Modifier.fillMaxWidth()){Text(if(avatarUrl.isBlank())"انتخاب عکس پروفایل" else "تغییر عکس پروفایل")}
+                                OutlinedButton(onClick={avatarPicker.launch("image/*")},modifier=Modifier.fillMaxWidth()){Text(tr(if(avatarUrl.isBlank())"انتخاب عکس پروفایل" else "تغییر عکس پروفایل",appLanguage))}
                             }
                         } else if (dialog == "feature:حریم خصوصی و امنیت") {
                             Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -1090,7 +1105,7 @@ private fun MoonNativeApp() {
                             }
                         } else if (dialog == "feature:دستگاه‌های فعال") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                Text("دستگاه فعلی: Android • ${Build.MODEL}",color=White,fontWeight=FontWeight.Bold)
+                                Text(tr("دستگاه فعلی: Android • ",appLanguage)+Build.MODEL,color=White,fontWeight=FontWeight.Bold)
                                 Text(tr("خروج سراسری همه نشست‌ها را باطل می‌کند؛ پس از آن باید دوباره وارد حساب شوی.",appLanguage),color=Muted,fontSize=12.sp)
                                 Button(enabled=!busy,onClick={scope.launch{busy=true;try{api.signOutEverywhere();realtime?.close();realtime=null;logged=false;dialog="";infoText="همه نشست‌ها باطل شدند."}catch(e:Exception){errorText=e.message?:"خروج سراسری ناموفق بود"}finally{busy=false}}},modifier=Modifier.fillMaxWidth(),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFFB83E55))){Text(tr("خروج از همه دستگاه‌ها",appLanguage))}
                                 Text(tr("به‌دلیل محدودیت API امن کلاینت، فهرست نشست‌های دیگر نمایش داده نمی‌شود.",appLanguage),color=Muted,fontSize=11.sp)
@@ -1108,7 +1123,7 @@ private fun MoonNativeApp() {
                         } else if (dialog == "feature:داده و حافظه") {
                             val cacheBytes = remember { context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
                             Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                Text("حافظه موقت برنامه: ${android.text.format.Formatter.formatShortFileSize(context,cacheBytes)}",color=White)
+                                Text(tr("حافظه موقت برنامه: ",appLanguage)+android.text.format.Formatter.formatShortFileSize(context,cacheBytes),color=White)
                                 Text(tr("پاک‌سازی فقط فایل‌های موقت (cache) را حذف می‌کند؛ نشست ورود، مخاطبین و پیام‌های ذخیره‌شده دست‌نخورده می‌مانند.",appLanguage),color=Muted,fontSize=11.sp)
                                 OutlinedButton(onClick={ context.cacheDir.deleteRecursively(); context.cacheDir.mkdirs(); infoText="حافظه موقت پاک شد."; dialog="" },modifier=Modifier.fillMaxWidth()) { Text(tr("پاک‌سازی حافظه موقت",appLanguage)) }
                             }
@@ -1141,7 +1156,7 @@ private fun MoonNativeApp() {
                                                 if(next.optString(room.id)==folder) next.remove(room.id) else next.put(room.id,folder)
                                                 roomFolders=next
                                                 featurePrefs.edit().putString("room_folders",next.toString()).apply()
-                                            }) { Text(if(roomFolders.optString(room.id)==folder)"برداشتن" else "افزودن") }
+                                            }) { Text(tr(if(roomFolders.optString(room.id)==folder)"برداشتن" else "افزودن",appLanguage)) }
                                         }
                                     }
                                     Row(verticalAlignment=Alignment.CenterVertically) {
@@ -1198,7 +1213,7 @@ private fun MoonNativeApp() {
                         } else if (dialog == "feature:درباره برنامه" || dialog == "feature:نسخه برنامه") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                 Text(tr("Moon Time",appLanguage),color=White,fontWeight=FontWeight.Bold)
-                                Text("نسخه ${context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "نامشخص"} • کد ${context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode}",color=White)
+                                Text(tr("نسخه ",appLanguage)+(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: tr("نامشخص",appLanguage))+" • "+tr("کد ",appLanguage)+context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode,color=White)
                                 Text(tr("پیام‌رسان آزمایشی؛ برخی قابلیت‌های پیشرفته هنوز در حال توسعه‌اند.",appLanguage),color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "emoji") {
