@@ -156,7 +156,7 @@ private class MoonApi(context:Context) {
         val id=userId?:error("ابتدا وارد حساب شو"); val n=name.trim(); val u=username.trim()
         if(n.length !in 2..32) error("نام نمایشی باید بین ۲ تا ۳۲ نویسه باشد.")
         if(u.isNotEmpty() && !Regex("^[A-Za-z0-9_]{3,24}$").matches(u)) error("نام کاربری باید ۳ تا ۲۴ حرف انگلیسی، عدد یا زیرخط باشد.")
-        request("/rest/v1/profiles?id=eq.$id","PATCH",JSONObject().put("display_name",n).put("username",u.ifBlank{JSONObject.NULL}).put("bio",bio.trim().take(160)).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+        request("/rest/v1/profiles?id=eq.$id","PATCH",JSONObject().put("display_name",n).put("username",if(u.isBlank()) JSONObject.NULL else u).put("bio",bio.trim().take(160)).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
         displayName=n; prefs.edit().putString("display_name",n).apply()
     }
     suspend fun loadPreferences():JSONObject { val id=userId?:return JSONObject(); val a=JSONArray(request("/rest/v1/user_settings?select=preferences&user_id=eq.$id")); return if(a.length()>0)a.getJSONObject(0).optJSONObject("preferences")?:JSONObject() else JSONObject() }
