@@ -622,6 +622,9 @@ private fun MoonNativeApp() {
     var selectedTab by remember { mutableStateOf("چت‌ها") }
     var messages by remember { mutableStateOf(emptyList<Msg>()) }
     var input by remember { mutableStateOf("") }
+    var replyingTo by remember { mutableStateOf<Msg?>(null) }
+    var selectedMessage by remember { mutableStateOf<Msg?>(null) }
+    var silentSend by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf("") }
     var dialogValue by remember { mutableStateOf("") }
     var realtime by remember { mutableStateOf<Realtime?>(null) }
@@ -682,6 +685,7 @@ private fun MoonNativeApp() {
             try {
                 currentPeerId=if(room.kind=="direct") api.peerId(room.id) else null
                 val loadedMessages = api.messages(room)
+                input = api.loadDraft(room.id)
                 if(readReceipts) try { api.markRead(loadedMessages.filter{!it.mine}.map{it.id}) } catch(_:Exception) { }
                 val readIds=try{api.fullyReadMessageIds(room.id,loadedMessages.filter{it.mine}.map{it.id})}catch(_:Exception){emptySet<String>()}
                 messages = (loadedMessages.map{if(it.mine)it.copy(read=it.id in readIds) else it} + api.pendingFor(room.id)).sortedBy { it.time }.map { m ->
@@ -1012,7 +1016,7 @@ private fun MoonNativeApp() {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(messages, key = { it.id }) { message ->
-                                MessageBubble(message, mediaLoader, emojiMotionEnabled && motionEnabled, appLanguage, onOpen = {
+                                MessageBubble(message, mediaLoader, emojiMotionEnabled && motionEnabled, appLanguage, onLongPress = { selectedMessage=message; dialog="message_actions" }, onOpen = {
                                     if (message.path != null) scope.launch {
                                         try { val url = api.signed(message.path); context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                                         catch (e: Exception) { errorText = e.message ?: "باز کردن رسانه ناموفق بود" }
@@ -1020,25 +1024,32 @@ private fun MoonNativeApp() {
                                 })
                             }
                         }
-                        Row(Modifier.fillMaxWidth().background(chatWallpaper).navigationBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.fillMaxWidth().background(chatWallpaper)) {
+                            if(replyingTo!=null) Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=2.dp),verticalAlignment=Alignment.CenterVertically) {
+                                Text("↪ "+replyingTo!!.text.take(64),Modifier.weight(1f),color=Cyan,fontSize=11.sp,maxLines=1)
+                                TextButton(onClick={replyingTo=null}){Text("×")}
+                            }
+                            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { picker.launch("*/*") }) { Icon(Icons.Default.AttachFile, null, tint = Color(0xFF707579)) }
                             BasicTextField(
-                                input, { input = it },
+                                input, { value -> input=value; val roomId=current?.id; if(roomId!=null) scope.launch { try { api.saveDraft(roomId,value) } catch(_:Exception){} } },
                                 Modifier.weight(1f).clip(RoundedCornerShape(22.dp)).background(Panel).padding(horizontal = 15.dp, vertical = 13.dp),
                                 textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF202124), fontSize = 14.sp),
                                 decorationBox = { inner -> if (input.isEmpty()) Text(tr("پیام...",appLanguage), color = Color(0xFF707579)); inner() }
                             )
                             IconButton(onClick = { dialog = "emoji" }) { Text(tr("😊",appLanguage), fontSize = 22.sp) }
+                            IconButton(onClick={silentSend=!silentSend}) { Text(if(silentSend)"🔕" else "🔔",fontSize=18.sp) }
                             IconButton(onClick = {
                                 val room = current; val value = input.trim()
                                 if (room != null && value.isNotEmpty()) scope.launch {
-                                    try { val sent = api.send(room, value); messages = messages + sent; input = "" }
+                                    try { val sent = api.send(room, value, replyTo=replyingTo?.id, silent=silentSend); messages = messages + sent; input = ""; replyingTo=null; api.saveDraft(room.id,"") }
                                     catch (e: Exception) {
                                         try { val queued = api.queueText(room, value); messages = messages + queued; input = ""; infoText = "پیام در صف ارسال قرار گرفت." }
                                         catch (_: Exception) { errorText = e.message ?: "ارسال ناموفق بود" }
                                     }
                                 }
                             }) { Icon(Icons.Default.Send, null, tint = Violet) }
+                            }
                         }
                     }
                     if (infoText.isNotBlank()) Text(infoText, color = Color(0xFF5288C1), fontSize = 10.sp, modifier = Modifier.padding(6.dp))
@@ -1053,6 +1064,11 @@ private fun MoonNativeApp() {
                     "direct" -> "گفتگوی خصوصی"
                     "new" -> "افزودن عضو"
                     "emoji" -> "ایموجی‌ها"
+                    "message_actions" -> "مدیریت پیام"
+                    "edit_message" -> "ویرایش پیام"
+                    "report_message" -> "گزارش پیام"
+                    "schedule_message" -> "زمان‌بندی ارسال"
+                    "scheduled_list" -> "پیام‌های زمان‌بندی‌شده"
                     "contacts" -> "مخاطبین من"
                     "menu" -> "منوی اصلی"
                     "settings" -> "تنظیمات Moon Time"
@@ -1066,12 +1082,57 @@ private fun MoonNativeApp() {
                     containerColor = Panel,
                     title = { Text(tr(dialogTitle,appLanguage), color = White) },
                     text = {
-                        if (dialog == "menu") {
+                        if(dialog=="message_actions") {
+                            Column(Modifier.heightIn(max=460.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                                val m=selectedMessage
+                                if(m!=null) {
+                                    Text(m.text.take(180),color=White,maxLines=3)
+                                    if(m.pinned) Text("📌 سنجاق‌شده",color=Cyan,fontSize=11.sp)
+                                    if(m.reactions.isNotBlank()) Text("واکنش‌ها: "+m.reactions,color=Cyan,fontSize=12.sp)
+                                    TextButton(onClick={replyingTo=m;dialog=""}){Text("پاسخ به پیام")}
+                                    TextButton(onClick={scope.launch{try{api.toggleReaction(m.id,"❤️");current?.let{connectRoom(it)};infoText="واکنش ثبت شد."}catch(e:Exception){errorText=e.message?: "ثبت واکنش ناموفق بود"};dialog=""}}){Text("❤️ واکنش / برداشتن")}
+                                    TextButton(onClick={scope.launch{try{val room=current?:error("گفتگو انتخاب نشده");api.pinMessage(room.id,m.id);connectRoom(room);infoText="وضعیت سنجاق تغییر کرد."}catch(e:Exception){errorText=e.message?: "سنجاق پیام ناموفق بود"};dialog=""}}){Text(if(m.pinned)"برداشتن سنجاق" else "سنجاق پیام")}
+                                    TextButton(onClick={scope.launch{try{api.saveMessage(m.id);infoText="پیام در ذخیره‌شده‌های حساب ثبت شد."}catch(e:Exception){errorText=e.message?: "ذخیره پیام ناموفق بود"};dialog=""}}){Text("ذخیره در پیام‌های ذخیره‌شده")}
+                                    if(m.mine) {
+                                        TextButton(onClick={dialogValue=m.text;dialog="edit_message"}){Text("ویرایش پیام")}
+                                        TextButton(onClick={scope.launch{try{api.deleteMessage(m.id);messages=messages.filterNot{it.id==m.id};infoText="پیام حذف شد."}catch(e:Exception){errorText=e.message?: "حذف پیام ناموفق بود"};dialog=""}}){Text("حذف پیام")}
+                                    }
+                                    TextButton(onClick={dialogValue="";dialog="report_message"}){Text("گزارش پیام")}
+                                }
+                            }
+                        } else if(dialog=="edit_message") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Field(dialogValue,{dialogValue=it},"متن ویرایش‌شده")
+                                Button(enabled=dialogValue.isNotBlank()&&!busy,onClick={scope.launch{busy=true;try{val m=selectedMessage?:error("پیامی انتخاب نشده");api.editMessage(m.id,dialogValue);messages=messages.map{if(it.id==m.id)it.copy(text=dialogValue.trim(),edited=true)else it};infoText="پیام ویرایش شد.";dialog=""}catch(e:Exception){errorText=e.message?: "ویرایش ناموفق بود"}finally{busy=false}}},modifier=Modifier.fillMaxWidth()){Text("ذخیره ویرایش")}
+                            }
+                        } else if(dialog=="report_message") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Field(dialogValue,{dialogValue=it},"دلیل گزارش (حداقل ۳ نویسه)")
+                                Button(enabled=dialogValue.trim().length>=3&&!busy,onClick={scope.launch{busy=true;try{val m=selectedMessage?:error("پیامی انتخاب نشده");val room=current?:error("گفتگو انتخاب نشده");api.reportMessage(room.id,m.id,dialogValue);infoText="گزارش ثبت شد.";dialog=""}catch(e:Exception){errorText=e.message?: "ثبت گزارش ناموفق بود"}finally{busy=false}}},modifier=Modifier.fillMaxWidth()){Text("ارسال گزارش")}
+                            }
+                        } else if(dialog=="schedule_message") {
+                            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("زمان را به‌صورت دقیقه از همین لحظه وارد کن.",color=Muted,fontSize=11.sp)
+                                Field(dialogValue,{dialogValue=it},"مثلاً 15")
+                                Button(enabled=dialogValue.toIntOrNull()?.let{it in 1..10080}==true&&!busy,onClick={scope.launch{busy=true;try{val room=current?:error("گفتگو انتخاب نشده");api.scheduleMessage(room.id,input,java.time.Instant.now().plusSeconds(dialogValue.toLong()*60));input="";api.saveDraft(room.id,"");infoText="پیام برای ارسال زمان‌بندی شد.";dialog=""}catch(e:Exception){errorText=e.message?: "زمان‌بندی ناموفق بود"}finally{busy=false}}},modifier=Modifier.fillMaxWidth()){Text("ثبت زمان‌بندی")}
+                            }
+                        } else if(dialog=="scheduled_list") {
+                            var rows by remember { mutableStateOf(emptyList<JSONObject>()) }
+                            LaunchedEffect(Unit){try{rows=api.scheduledMessages()}catch(e:Exception){errorText=e.message?: "بارگذاری پیام‌های زمان‌بندی‌شده ناموفق بود"}}
+                            Column(Modifier.heightIn(max=450.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                if(rows.isEmpty()) Text("پیام زمان‌بندی‌شده‌ای وجود ندارد.",color=Muted)
+                                rows.forEach { row -> Row(verticalAlignment=Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)){Text(row.optString("body"),color=White,maxLines=2);Text(row.optString("send_at"),color=Muted,fontSize=10.sp)}
+                                    TextButton(onClick={scope.launch{try{api.cancelScheduled(row.optString("id"));rows=rows.filterNot{it.optString("id")==row.optString("id")};infoText="زمان‌بندی لغو شد."}catch(e:Exception){errorText=e.message?: "لغو ناموفق بود"}}}){Text("لغو")}
+                                }}
+                            }
+                        } else if (dialog == "menu") {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(
                                     "گروه جدید" to "group",
                                     "پیام جدید" to "direct",
                                     "کانال جدید" to "channel",
+                                    "پیام‌های زمان‌بندی‌شده" to "scheduled_list",
                                     "مخاطبین" to "contacts",
                                     "تماس‌ها" to "feature:تماس‌ها",
                                     "پیام‌های ذخیره‌شده" to "feature:پیام‌های ذخیره‌شده",
@@ -1416,7 +1477,7 @@ private fun Field(
 }
 
 @Composable
-private fun MessageBubble(m: Msg, loader: ImageLoader, animateEmoji: Boolean = true, language:String="فارسی", onOpen: () -> Unit) {
+private fun MessageBubble(m: Msg, loader: ImageLoader, animateEmoji: Boolean = true, language:String="فارسی", onLongPress:()->Unit, onOpen: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (m.mine) Arrangement.Start else Arrangement.End
@@ -1427,7 +1488,7 @@ private fun MessageBubble(m: Msg, loader: ImageLoader, animateEmoji: Boolean = t
                     if(m.mine)Brush.horizontalGradient(listOf(Color(0xFFEFFDDE),Color(0xFFEFFDDE)))
 else Brush.horizontalGradient(listOf(Color.White,Color.White))
                 )
-                .clickable { if (m.path != null) onOpen() }
+                 .combinedClickable(onClick={if(m.path!=null)onOpen()},onLongClick=onLongPress)
                 .padding(12.dp)
         ) {
             when (m.kind) {
@@ -1449,6 +1510,7 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
                 "audio" -> Text("🎵 فایل صوتی", color = White)
                 "file" -> Text("📎 ${m.name ?: "فایل پیوست"}", color = White)
             }
+            if(m.replyTo!=null) Text("↪ پاسخ به پیام",color=Color(0xFF5288C1),fontSize=10.sp)
             if (m.text.isNotBlank()) {
                 if (m.text.trim() in setOf("😀","🥳","😍","🔥","✨","🚀","🌙","💜","🎉","😂")) {
                     AnimatedEmoji(m.text.trim(), animateEmoji)
@@ -1456,7 +1518,10 @@ else Brush.horizontalGradient(listOf(Color.White,Color.White))
                     Text(m.text, color = White, fontSize = 14.sp)
                 }
             }
+            if(m.reactions.isNotBlank()) Text(m.reactions,color=Color(0xFF5288C1),fontSize=11.sp)
             Row(Modifier.align(Alignment.End),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                if(m.pinned) Text("📌",fontSize=9.sp)
+                if(m.edited) Text("ویرایش‌شده",color=Color(0xFF707579),fontSize=8.sp)
                 Text(if(m.pending) "در صف ارسال" else m.time.take(16).replace("T"," "),color=if(m.pending)Violet else Color(0xFF707579),fontSize=9.sp)
                 if(m.mine && !m.pending) Text(if(m.read) "✓✓" else "✓",color=if(m.read)Color(0xFF3390EC) else Color(0xFF707579),fontSize=11.sp,fontWeight=FontWeight.Bold)
             }
