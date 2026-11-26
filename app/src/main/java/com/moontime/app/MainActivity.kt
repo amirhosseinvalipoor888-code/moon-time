@@ -408,11 +408,18 @@ private class MoonApi(context:Context) {
         val a=JSONArray(request("/rest/v1/messages?select=id,body,sender_id,created_at,message_kind,attachment_path,attachment_name&conversation_id=eq.${room.id}&order=created_at.asc&limit=200"))
         return (0 until a.length()).map{val o=a.getJSONObject(it);Msg(o.getString("id"),o.optString("body"),o.optString("sender_id")==uid,o.optString("created_at"),o.optString("message_kind","text"),o.optString("attachment_path").takeIf{s->s.isNotBlank()},o.optString("attachment_name").takeIf{s->s.isNotBlank()})}
     }
-    suspend fun readReceiptIds(messageIds:List<String>):Set<String> {
+    suspend fun fullyReadMessageIds(roomId:String,messageIds:List<String>):Set<String> {
         if(messageIds.isEmpty()) return emptySet()
+        val uid=userId?:return emptySet()
+        val members=JSONArray(request("/rest/v1/conversation_members?select=user_id&conversation_id=eq.$roomId&user_id=neq.$uid"))
+        val recipients=(0 until members.length()).map{members.getJSONObject(it).optString("user_id")}.filter{it.isNotBlank()}.toSet()
+        if(recipients.isEmpty()) return emptySet()
         val ids=messageIds.distinct().joinToString(",")
-        val rows=JSONArray(request("/rest/v1/message_read_receipts?select=message_id&message_id=in.($ids)"))
-        return (0 until rows.length()).map{rows.getJSONObject(it).optString("message_id")}.toSet()
+        val userFilter=recipients.joinToString(",")
+        val rows=JSONArray(request("/rest/v1/message_read_receipts?select=message_id,user_id&message_id=in.($ids)&user_id=in.($userFilter)"))
+        val counts=mutableMapOf<String,MutableSet<String>>()
+        for(i in 0 until rows.length()) { val row=rows.getJSONObject(i); counts.getOrPut(row.optString("message_id")){mutableSetOf()}.add(row.optString("user_id")) }
+        return counts.filterValues{it.size>=recipients.size}.keys
     }
     suspend fun peerId(roomId:String):String? {
         val uid=userId?:return null
@@ -597,7 +604,7 @@ private fun MoonNativeApp() {
                 currentPeerId=if(room.kind=="direct") api.peerId(room.id) else null
                 val loadedMessages = api.messages(room)
                 if(readReceipts) try { api.markRead(loadedMessages.filter{!it.mine}.map{it.id}) } catch(_:Exception) { }
-                val readIds=try{api.readReceiptIds(loadedMessages.filter{it.mine}.map{it.id})}catch(_:Exception){emptySet<String>()}
+                val readIds=try{api.fullyReadMessageIds(room.id,loadedMessages.filter{it.mine}.map{it.id})}catch(_:Exception){emptySet<String>()}
                 messages = (loadedMessages.map{if(it.mine)it.copy(read=it.id in readIds) else it} + api.pendingFor(room.id)).sortedBy { it.time }.map { m ->
                     if (m.path != null) try { m.copy(mediaUrl = api.signed(m.path)) } catch (_:Exception) { m } else m
                 }
@@ -628,8 +635,12 @@ private fun MoonNativeApp() {
                         }
                     }, { receipt ->
                         if(receipt.optString("user_id")!=api.userId) {
-                            val mid=receipt.optString("message_id")
-                            messages=messages.map{if(it.id==mid)it.copy(read=true) else it}
+                            val room=current
+                            if(room!=null) {
+                                val outgoing=messages.filter{it.mine}.map{it.id}
+                                val fullyRead=try{api.fullyReadMessageIds(room.id,outgoing)}catch(_:Exception){emptySet<String>()}
+                                messages=messages.map{if(it.id in fullyRead)it.copy(read=true) else it}
+                            }
                         }
                     })
                     realtime = connection
