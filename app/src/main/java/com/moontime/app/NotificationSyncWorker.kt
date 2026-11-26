@@ -57,6 +57,38 @@ class NotificationSyncWorker(context: Context, params: WorkerParameters) : Corou
             }
             prefs.edit().putString("moon_pending_messages", remaining.toString()).apply()
 
+            // Deliver due scheduled messages when Android runs this periodic worker.
+            val duePath = "/rest/v1/scheduled_messages?select=id,conversation_id,body&user_id=eq.$uid&sent_message_id=is.null&send_at=lte.${URLEncoder.encode(Instant.now().toString(), "UTF-8")}&order=send_at.asc&limit=30"
+            val dueResponse = call(duePath, access)
+            if (dueResponse.isSuccessful) {
+                val dueRows = JSONArray(dueResponse.body?.string().orEmpty())
+                dueResponse.close()
+                for (i in 0 until dueRows.length()) {
+                    val scheduled = dueRows.getJSONObject(i)
+                    val messageBody = JSONObject()
+                        .put("conversation_id", scheduled.getString("conversation_id"))
+                        .put("sender_id", uid)
+                        .put("body", scheduled.getString("body"))
+                        .put("message_kind", "text")
+                    val sendReq = Request.Builder().url(base + "/rest/v1/messages")
+                        .header("apikey", key).header("Authorization", "Bearer " + access)
+                        .header("Content-Type", "application/json").header("Prefer", "return=representation")
+                        .post(messageBody.toString().toRequestBody("application/json".toMediaType())).build()
+                    val sentResponse = client.newCall(sendReq).execute()
+                    val sentRows = JSONArray(sentResponse.body?.string().orEmpty())
+                    sentResponse.close()
+                    if (sentRows.length() > 0) {
+                        val sentId = sentRows.getJSONObject(0).optString("id")
+                        val patchBody = JSONObject().put("sent_message_id", sentId).toString()
+                        val patchReq = Request.Builder().url(base + "/rest/v1/scheduled_messages?id=eq.${scheduled.getString("id")}&user_id=eq.$uid")
+                            .header("apikey", key).header("Authorization", "Bearer " + access)
+                            .header("Content-Type", "application/json")
+                            .method("PATCH", patchBody.toRequestBody("application/json".toMediaType())).build()
+                        client.newCall(patchReq).execute().close()
+                    }
+                }
+            } else dueResponse.close()
+
             var last = prefs.getString("last_notification_check", null)
                 ?: Instant.now().minusSeconds(15 * 60).toString()
             var membersResponse = call("/rest/v1/conversation_members?select=conversation_id&user_id=eq.$uid", access)
