@@ -423,6 +423,37 @@ private class MoonApi(context:Context) {
         val a=JSONArray(request("/rest/v1/messages?select=id,body,sender_id,created_at,message_kind,attachment_path,attachment_name&conversation_id=eq.${room.id}&order=created_at.asc&limit=200"))
         return (0 until a.length()).map{val o=a.getJSONObject(it);Msg(o.getString("id"),o.optString("body"),o.optString("sender_id")==uid,o.optString("created_at"),o.optString("message_kind","text"),o.optString("attachment_path").takeIf{s->s.isNotBlank()},o.optString("attachment_name").takeIf{s->s.isNotBlank()})}
     }
+
+    suspend fun editMessage(messageId:String,newText:String) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        if(newText.isBlank()) error("متن پیام خالی است.")
+        request("/rest/v1/messages?id=eq.$messageId&sender_id=eq.$uid","PATCH",JSONObject().put("body",newText.trim()).put("edited_at",java.time.Instant.now().toString()).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+    }
+    suspend fun deleteMessage(messageId:String) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        request("/rest/v1/messages?id=eq.$messageId&sender_id=eq.$uid","DELETE",null,true,"application/json",mapOf("Prefer" to "return=minimal"))
+    }
+    suspend fun toggleReaction(messageId:String,emoji:String) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        val encoded=URLEncoder.encode(emoji,"UTF-8")
+        val rows=JSONArray(request("/rest/v1/message_reactions?select=id&message_id=eq.$messageId&user_id=eq.$uid&emoji=eq.$encoded"))
+        if(rows.length()>0) request("/rest/v1/message_reactions?message_id=eq.$messageId&user_id=eq.$uid&emoji=eq.$encoded","DELETE")
+        else request("/rest/v1/message_reactions","POST",JSONObject().put("message_id",messageId).put("user_id",uid).put("emoji",emoji).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+    }
+    suspend fun pinMessage(roomId:String,messageId:String) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        val exists=JSONArray(request("/rest/v1/pinned_messages?select=message_id&message_id=eq.$messageId"))
+        if(exists.length()>0) request("/rest/v1/pinned_messages?message_id=eq.$messageId","DELETE")
+        else request("/rest/v1/pinned_messages","POST",JSONObject().put("message_id",messageId).put("conversation_id",roomId).put("pinned_by",uid).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+    }
+    suspend fun saveMessage(messageId:String) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        request("/rest/v1/saved_messages?on_conflict=user_id,message_id","POST",JSONObject().put("user_id",uid).put("message_id",messageId).toString(),true,"application/json",mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
+    }
+    suspend fun reportMessage(roomId:String,messageId:String?,reason:String) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        request("/rest/v1/moderation_reports","POST",JSONObject().put("reporter_id",uid).put("conversation_id",roomId).put("message_id",messageId).put("reason",reason).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+    }
     suspend fun fullyReadMessageIds(roomId:String,messageIds:List<String>):Set<String> {
         if(messageIds.isEmpty()) return emptySet()
         val uid=userId?:return emptySet()
