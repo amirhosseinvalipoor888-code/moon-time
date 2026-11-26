@@ -512,12 +512,13 @@ private class MoonApi(context:Context) {
         messageIds.distinct().forEach { rows.put(JSONObject().put("message_id",it).put("user_id",uid)) }
         request("/rest/v1/message_read_receipts?on_conflict=message_id,user_id","POST",rows.toString(),true,"application/json",mapOf("Prefer" to "resolution=ignore-duplicates,return=minimal"))
     }
-    suspend fun send(room:Room,text:String,kind:String="text",path:String?=null,name:String?=null,mime:String?=null,size:Long?=null):Msg {
+    suspend fun send(room:Room,text:String,kind:String="text",path:String?=null,name:String?=null,mime:String?=null,size:Long?=null,replyTo:String?=null,silent:Boolean=false):Msg {
         val uid=userId?:error("ابتدا وارد شو")
-        val rows=JSONArray(request("/rest/v1/messages","POST",JSONObject().put("conversation_id",room.id).put("sender_id",uid).put("body",text.ifBlank{if(kind=="image")"تصویر" else "رسانه"}).put("message_kind",kind).put("attachment_path",path).put("attachment_name",name).put("attachment_mime",mime).put("attachment_size",size).toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
+        val payload=JSONObject().put("conversation_id",room.id).put("sender_id",uid).put("body",text.ifBlank{if(kind=="image")"تصویر" else "رسانه"}).put("message_kind",kind).put("attachment_path",path).put("attachment_name",name).put("attachment_mime",mime).put("attachment_size",size).put("reply_to_message_id",replyTo).put("silent",silent)
+        val rows=JSONArray(request("/rest/v1/messages","POST",payload.toString(),true,"application/json",mapOf("Prefer" to "return=representation")))
         if(rows.length()==0) error("سرور پیام را ذخیره نکرد.")
         val o=rows.getJSONObject(0)
-        return Msg(o.getString("id"),o.optString("body"),true,o.optString("created_at"),kind,path,name)
+        return Msg(o.getString("id"),o.optString("body"),true,o.optString("created_at"),kind,path,name,replyTo=replyTo)
     }
     suspend fun upload(room:Room,uri:Uri,context:Context):Triple<String,String,String> = withContext(Dispatchers.IO) {
         val bytes=context.contentResolver.openInputStream(uri)?.use{it.readBytes()}?:error("خواندن فایل ناموفق بود")
