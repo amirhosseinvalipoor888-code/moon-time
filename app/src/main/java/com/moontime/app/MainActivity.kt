@@ -876,7 +876,7 @@ private fun MoonNativeApp() {
                         } else if (dialog == "feature:درباره برنامه" || dialog == "feature:نسخه برنامه") {
                             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                 Text("Moon Time",color=White,fontWeight=FontWeight.Bold)
-                                Text("نسخه ${BuildConfig.VERSION_NAME} • کد ${BuildConfig.VERSION_CODE}",color=White)
+                                Text("نسخه ${context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "نامشخص"} • کد ${context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode}",color=White)
                                 Text("پیام‌رسان آزمایشی؛ برخی قابلیت‌های پیشرفته هنوز در حال توسعه‌اند.",color=Muted,fontSize=11.sp)
                             }
                         } else if (dialog == "emoji") {
