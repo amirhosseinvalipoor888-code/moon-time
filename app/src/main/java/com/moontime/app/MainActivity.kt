@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.Font
@@ -623,6 +625,7 @@ private fun MoonNativeApp() {
     ) {
         CompositionLocalProvider(
             LocalDensity provides Density(density = LocalDensity.current.density, fontScale = fontScale),
+            LocalLayoutDirection provides (if(appLanguage=="فارسی" || appLanguage=="العربية") LayoutDirection.Rtl else LayoutDirection.Ltr),
             LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = selectedFont)
         ) {
         Box(
