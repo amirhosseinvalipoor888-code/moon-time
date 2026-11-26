@@ -267,6 +267,14 @@ private class MoonApi(context:Context) {
     var userId:String? = prefs.getString("uid",null); private set
     var email:String? = prefs.getString("email",null); private set
     var displayName:String? = prefs.getString("display_name",null); private set
+    var keepSignedIn:Boolean = prefs.getBoolean("keep_signed_in",true); private set
+    fun setKeepSignedIn(enabled:Boolean) {
+        keepSignedIn=enabled
+        val editor=prefs.edit().putBoolean("keep_signed_in",enabled)
+        if(!enabled) editor.remove("access").remove("refresh").remove("uid")
+        else if(token!=null && refresh!=null && userId!=null) editor.putString("access",token).putString("refresh",refresh).putString("uid",userId)
+        editor.apply()
+    }
     private fun save(o:JSONObject) {
         token=o.optString("access_token").takeIf{it.isNotBlank()}
         refresh=o.optString("refresh_token").takeIf{it.isNotBlank()}
@@ -274,9 +282,12 @@ private class MoonApi(context:Context) {
         userId=u?.optString("id")?.takeIf{it.isNotBlank()}
         email=u?.optString("email")?.takeIf{it.isNotBlank()}
         displayName=u?.optJSONObject("user_metadata")?.optString("display_name")?.takeIf{it.isNotBlank()} ?: displayName
-        prefs.edit().putString("access",token).putString("refresh",refresh).putString("uid",userId).putString("email",email).putString("display_name",displayName).apply()
+        val editor=prefs.edit().putString("email",email).putString("display_name",displayName).putBoolean("keep_signed_in",keepSignedIn)
+        if(keepSignedIn) editor.putString("access",token).putString("refresh",refresh).putString("uid",userId)
+        else editor.remove("access").remove("refresh").remove("uid")
+        editor.apply()
     }
-    fun logout(){token=null;refresh=null;userId=null;email=null;displayName=null;prefs.edit().clear().apply()}
+    fun logout(){token=null;refresh=null;userId=null;email=null;displayName=null;prefs.edit().clear().putBoolean("keep_signed_in",true).apply()}
     private suspend fun request(path:String,method:String="GET",body:String?=null,auth:Boolean=true,contentType:String="application/json",extra:Map<String,String> = emptyMap()):String = withContext(Dispatchers.IO) {
         suspend fun send():Response {
             val b=Request.Builder().url(API_URL+path).header("apikey",API_KEY).header("Accept","application/json")
@@ -608,6 +619,7 @@ private fun MoonNativeApp() {
     var logged by remember { mutableStateOf(api.token != null && api.userId != null) }
     var email by remember { mutableStateOf(api.email.orEmpty()) }
     var password by remember { mutableStateOf("") }
+    var keepSignedIn by remember { mutableStateOf(api.keepSignedIn) }
     var displayName by remember { mutableStateOf("") }
     var invite by remember { mutableStateOf("") }
     var otp by remember { mutableStateOf("") }
@@ -788,7 +800,13 @@ private fun MoonNativeApp() {
                 featurePrefs.edit().putBoolean("online_status",onlineStatus).putBoolean("profile_searchable",profileSearchable).putBoolean("read_receipts",readReceipts).apply()
                 refreshRooms()
             } catch (e: Exception) {
-                errorText = e.message ?: "ورود دوباره لازم است"; api.logout(); logged = false
+                val reason=e.message.orEmpty()
+                val invalidSession=reason.contains("نشست منقضی",ignoreCase=true) ||
+                    reason.contains("invalid refresh token",ignoreCase=true) ||
+                    reason.contains("refresh token not found",ignoreCase=true) ||
+                    reason.contains("refresh_token_not_found",ignoreCase=true)
+                errorText = if(invalidSession) "نشست حساب منقضی شده؛ لطفاً دوباره وارد شو." else "اتصال برقرار نشد. نشستت حفظ شده؛ پس از وصل‌شدن اینترنت دوباره تلاش کن."
+                if(invalidSession) { api.logout(); logged=false }
             }
         }
     }
@@ -875,6 +893,16 @@ private fun MoonNativeApp() {
                         }
                         Field(email, { email = it }, tr("ایمیل",appLanguage))
                         Field(password, { password = it }, tr("رمز عبور",appLanguage), true)
+                        if(!registerMode && !verifyMode) {
+                            Row(Modifier.fillMaxWidth().clickable {
+                                keepSignedIn=!keepSignedIn
+                                api.setKeepSignedIn(keepSignedIn)
+                            }.padding(top=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                                Checkbox(checked=keepSignedIn,onCheckedChange={keepSignedIn=it;api.setKeepSignedIn(it)})
+                                Text("ماندن در حساب کاربری",color=White,fontSize=13.sp)
+                            }
+                            Text("با فعال بودن این گزینه، پس از بستن و بازکردن برنامه دوباره رمز نمی‌خواهد.",color=Muted,fontSize=10.sp)
+                        }
                     }
 
                     if (errorText.isNotBlank()) Text(errorText, color = Color(0xFFFF9BAF), fontSize = 12.sp)
