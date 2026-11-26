@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -79,7 +80,7 @@ private val Muted: Color get() = if (activeDarkTheme) Color(0xFF9AA9B8) else Col
 private val http = OkHttpClient.Builder().connectTimeout(25, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).build()
 
 data class Room(val id:String,val title:String,val kind:String)
-data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null,val mediaUrl:String?=null,val pending:Boolean=false,val read:Boolean=false)
+data class Msg(val id:String,val text:String,val mine:Boolean,val time:String,val kind:String="text",val path:String?=null,val name:String?=null,val mediaUrl:String?=null,val pending:Boolean=false,val read:Boolean=false,val replyTo:String?=null,val edited:Boolean=false,val reactions:String="",val pinned:Boolean=false)
 data class MoonContact(val id:String,val name:String,val email:String)
 
 class MainActivity : ComponentActivity() {
@@ -420,8 +421,40 @@ private class MoonApi(context:Context) {
     }
     suspend fun messages(room:Room):List<Msg> {
         val uid=userId?:return emptyList()
-        val a=JSONArray(request("/rest/v1/messages?select=id,body,sender_id,created_at,message_kind,attachment_path,attachment_name&conversation_id=eq.${room.id}&order=created_at.asc&limit=200"))
-        return (0 until a.length()).map{val o=a.getJSONObject(it);Msg(o.getString("id"),o.optString("body"),o.optString("sender_id")==uid,o.optString("created_at"),o.optString("message_kind","text"),o.optString("attachment_path").takeIf{s->s.isNotBlank()},o.optString("attachment_name").takeIf{s->s.isNotBlank()})}
+        val a=JSONArray(request("/rest/v1/messages?select=id,body,sender_id,created_at,message_kind,attachment_path,attachment_name,reply_to_message_id,edited_at&conversation_id=eq.${room.id}&order=created_at.asc&limit=200"))
+        val ids=(0 until a.length()).map{a.getJSONObject(it).optString("id")}.filter{it.isNotBlank()}
+        val reactionMap=mutableMapOf<String,String>()
+        val pinSet=mutableSetOf<String>()
+        if(ids.isNotEmpty()) {
+            val filter=ids.joinToString(",")
+            try { val rs=JSONArray(request("/rest/v1/message_reactions?select=message_id,emoji&message_id=in.($filter)")); for(i in 0 until rs.length()){val row=rs.getJSONObject(i);val id=row.optString("message_id");reactionMap[id]=(reactionMap[id].orEmpty()+" "+row.optString("emoji")).trim()} } catch(_:Exception) {}
+            try { val ps=JSONArray(request("/rest/v1/pinned_messages?select=message_id&conversation_id=eq.${room.id}"));for(i in 0 until ps.length())pinSet.add(ps.getJSONObject(i).optString("message_id")) } catch(_:Exception) {}
+        }
+        return (0 until a.length()).map{val o=a.getJSONObject(it);val id=o.getString("id");Msg(id,o.optString("body"),o.optString("sender_id")==uid,o.optString("created_at"),o.optString("message_kind","text"),o.optString("attachment_path").takeIf{x->x.isNotBlank()},o.optString("attachment_name").takeIf{x->x.isNotBlank()},replyTo=o.optString("reply_to_message_id").takeIf{x->x.isNotBlank()},edited=o.optString("edited_at").isNotBlank(),reactions=reactionMap[id].orEmpty(),pinned=id in pinSet)}
+    }
+    suspend fun loadDraft(roomId:String):String {
+        val uid=userId?:return ""
+        val rows=JSONArray(request("/rest/v1/message_drafts?select=body&user_id=eq.$uid&conversation_id=eq.$roomId"))
+        return if(rows.length()>0)rows.getJSONObject(0).optString("body") else ""
+    }
+    suspend fun saveDraft(roomId:String,body:String) {
+        val uid=userId?:return
+        request("/rest/v1/message_drafts?on_conflict=user_id,conversation_id","POST",JSONObject().put("user_id",uid).put("conversation_id",roomId).put("body",body).put("updated_at",java.time.Instant.now().toString()).toString(),true,"application/json",mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"))
+    }
+    suspend fun scheduleMessage(roomId:String,body:String,sendAt:java.time.Instant) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        if(body.isBlank())error("متن پیام خالی است.")
+        if(!sendAt.isAfter(java.time.Instant.now().plusSeconds(30)))error("زمان ارسال باید حداقل ۳۰ ثانیه بعد باشد.")
+        request("/rest/v1/scheduled_messages","POST",JSONObject().put("user_id",uid).put("conversation_id",roomId).put("body",body.trim()).put("send_at",sendAt.toString()).toString(),true,"application/json",mapOf("Prefer" to "return=minimal"))
+    }
+    suspend fun scheduledMessages():List<JSONObject> {
+        val uid=userId?:return emptyList()
+        val rows=JSONArray(request("/rest/v1/scheduled_messages?select=id,conversation_id,body,send_at&user_id=eq.$uid&sent_message_id=is.null&order=send_at.asc"))
+        return (0 until rows.length()).map{rows.getJSONObject(it)}
+    }
+    suspend fun cancelScheduled(id:String) {
+        val uid=userId?:error("ابتدا وارد حساب شو")
+        request("/rest/v1/scheduled_messages?id=eq.$id&user_id=eq.$uid","DELETE")
     }
 
     suspend fun editMessage(messageId:String,newText:String) {
